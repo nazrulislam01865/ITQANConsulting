@@ -56,3 +56,32 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+
+## Initial admin credentials
+
+The initial admin account is seeded from your `.env` file. Set these values before running `php artisan migrate --seed`:
+
+```env
+ITQAN_ADMIN_NAME="ITQAN Administrator"
+ITQAN_ADMIN_EMAIL=your-admin-email@example.com
+ITQAN_ADMIN_PASSWORD=your-strong-admin-password
+```
+
+The password must be at least 12 characters.
+
+
+## Latest update: all page backend control
+
+The admin panel now controls Home, About, Services, Works, Catalog, and Contact page sections separately.
+
+Run after updating:
+
+```bash
+php artisan optimize:clear
+php artisan migrate
+php artisan db:seed --class=ItqanWebsiteSeeder
+php artisan view:clear
+```
+
+For fresh install, set `ITQAN_ADMIN_EMAIL` and `ITQAN_ADMIN_PASSWORD` in `.env` before `php artisan migrate --seed`.
