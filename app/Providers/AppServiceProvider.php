@@ -43,6 +43,17 @@ class AppServiceProvider extends ServiceProvider
 
     private function configureRateLimiting(): void
     {
+
+
+        RateLimiter::for('contact-form', function (Request $request) {
+            return Limit::perMinutes(5, 5)->by('contact-form:'.$request->ip())
+                ->response(function () {
+                    return back()
+                        ->withInput()
+                        ->withErrors(['message' => 'Too many contact messages. Please wait a few minutes and try again.']);
+                });
+        });
+
         RateLimiter::for('admin-login', function (Request $request) {
             $email = mb_strtolower((string) $request->input('email'));
             $key = 'admin-login:'.$email.'|'.$request->ip();

@@ -105,15 +105,15 @@ return [
         ],
         'contact_options' => [
             'needs' => ['Not sure yet', 'Business process', 'Software development', 'ERP', 'Website', 'Automation', 'Project management', 'Training', 'Dedicated team'],
-            'areas' => ['Business<br>process', 'Software<br>development', 'ERP', 'Website', 'Automation', 'Training'],
+            'areas' => ['Business<br>process', 'Project<br>management', 'Software<br>development', 'ERP', 'Website', 'Automation', 'Training'],
             'methods' => ['WhatsApp', 'Email', 'Phone call', 'Google Meet'],
         ],
     ],
 
     'pages' => [
         'home' => [
-            'title' => 'ITQAN Consulting — Website Prototype',
-            'meta_description' => 'Responsive website prototype for ITQAN Consulting.',
+            'title' => 'ITQAN Consulting',
+            'meta_description' => 'ITQAN Consulting provides practical consulting, software planning, project delivery, automation, ERP, websites, and training support.',
             'hero' => [
                 'label' => 'ITQAN Consulting',
                 'title' => 'When business feels <span class="red-text">messy</span>, we help make it <span class="blue-text">clear.</span>',

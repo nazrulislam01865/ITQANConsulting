@@ -12,7 +12,13 @@
     <div class="nav-actions">
       <button class="motion-toggle" id="motionToggle" type="button" aria-pressed="false"><span></span>Motion On</button>
       @include('frontend.partials.button', ['button' => $site['primary_cta'], 'class' => 'primary'])
-      <button class="menu-btn" id="menuBtn" type="button" aria-controls="navlinks" aria-expanded="false">Menu</button>
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Open menu" aria-controls="navlinks" aria-expanded="false">
+        <span class="menu-icon" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+      </button>
     </div>
   </div>
 </header>

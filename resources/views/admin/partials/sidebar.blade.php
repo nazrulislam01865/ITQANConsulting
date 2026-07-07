@@ -5,7 +5,7 @@
   $currentPageSection = request()->route('section');
 @endphp
 
-<aside class="sidebar">
+<aside class="sidebar" id="admin-sidebar">
   @include('admin.partials.brand', [
     'href' => route('admin.dashboard'),
     'title' => 'ITQAN Admin',
@@ -67,9 +67,10 @@
       </div>
     @endforeach
 
-    <a class="{{ request()->routeIs('admin.site-settings.*') ? 'active' : '' }}" href="{{ route('admin.site-settings.edit') }}">Site Settings &amp; Logo</a>
+    <a class="{{ request()->routeIs('admin.site-settings.*') ? 'active' : '' }}" href="{{ route('admin.site-settings.edit') }}">Site Settings, Logo &amp; Favicon</a>
     <a class="{{ request()->routeIs('admin.header-menu.*') ? 'active' : '' }}" href="{{ route('admin.header-menu.index') }}">Header Menu</a>
     <a class="{{ request()->routeIs('admin.footer-menu.*') ? 'active' : '' }}" href="{{ route('admin.footer-menu.index') }}">Footer Menu</a>
+    <a class="{{ request()->routeIs('admin.contact-submissions.*') ? 'active' : '' }}" href="{{ route('admin.contact-submissions.index') }}">Contact Responses</a>
     <a class="{{ request()->routeIs('admin.social-links.*') ? 'active' : '' }}" href="{{ route('admin.social-links.index') }}">Social Links</a>
     <a href="{{ route('home') }}" target="_blank" rel="noopener">View Website</a>
   </nav>

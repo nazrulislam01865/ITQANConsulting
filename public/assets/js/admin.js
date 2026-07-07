@@ -124,6 +124,54 @@ document.addEventListener('DOMContentLoaded', () => {
     resetSessionTimeout();
   }
 
+
+  // Mobile admin sidebar drawer.
+  const adminMenuToggle = document.querySelector('[data-admin-menu-toggle]');
+  const adminMenuOverlay = document.querySelector('[data-admin-sidebar-close]');
+  const adminMobileBreakpoint = window.matchMedia('(max-width: 1000px)');
+
+  const setAdminMobileMenu = (isOpen) => {
+    document.body.classList.toggle('admin-mobile-menu-open', isOpen);
+
+    if (adminMenuToggle) {
+      adminMenuToggle.classList.toggle('is-open', isOpen);
+      adminMenuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      adminMenuToggle.setAttribute('aria-label', isOpen ? 'Close admin menu' : 'Open admin menu');
+    }
+  };
+
+  if (adminMenuToggle) {
+    adminMenuToggle.addEventListener('click', () => {
+      setAdminMobileMenu(!document.body.classList.contains('admin-mobile-menu-open'));
+    });
+  }
+
+  if (adminMenuOverlay) {
+    adminMenuOverlay.addEventListener('click', () => setAdminMobileMenu(false));
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      setAdminMobileMenu(false);
+    }
+  });
+
+  if (sidebar) {
+    sidebar.querySelectorAll('a[href]').forEach((link) => {
+      link.addEventListener('click', () => {
+        if (adminMobileBreakpoint.matches) {
+          setAdminMobileMenu(false);
+        }
+      });
+    });
+  }
+
+  adminMobileBreakpoint.addEventListener?.('change', (event) => {
+    if (!event.matches) {
+      setAdminMobileMenu(false);
+    }
+  });
+
   document.documentElement.classList.remove('admin-nav-hydrating');
 
 });

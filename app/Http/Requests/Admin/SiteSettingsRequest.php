@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Support\Favicon;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 
 class SiteSettingsRequest extends FormRequest
 {
@@ -18,6 +20,22 @@ class SiteSettingsRequest extends FormRequest
             'site_name' => ['required', 'string', 'max:120'],
             'mark_text' => ['nullable', 'string', 'max:10'],
             'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'favicon' => [
+                'nullable',
+                'file',
+                'max:1024',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! $value instanceof UploadedFile) {
+                        return;
+                    }
+
+                    $extension = strtolower($value->getClientOriginalExtension() ?: $value->extension() ?: '');
+
+                    if (! in_array($extension, Favicon::ALLOWED_EXTENSIONS, true)) {
+                        $fail('The favicon must be an ICO, PNG, WEBP, JPG, or JPEG file.');
+                    }
+                },
+            ],
             'tagline' => ['nullable', 'string', 'max:160'],
             'email' => ['nullable', 'email', 'max:190'],
             'address' => ['nullable', 'string', 'max:190'],

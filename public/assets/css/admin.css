@@ -194,3 +194,166 @@ html.admin-nav-hydrating .sidebar-nav{visibility:hidden}
   .social-icon-inline{min-width:240px}
   .social-admin-icon-cell{min-width:270px!important}
 }
+
+/* Mobile admin drawer menu */
+.admin-mobile-bar,
+.admin-mobile-overlay{
+  display:none;
+}
+
+.admin-mobile-menu-toggle{
+  width:58px;
+  height:58px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.06);
+  color:#fff;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:6px;
+  padding:0;
+  cursor:pointer;
+  transition:background .22s ease,border-color .22s ease,transform .22s ease;
+}
+.admin-mobile-menu-toggle:hover{
+  background:rgba(255,255,255,.1);
+  border-color:rgba(105,212,255,.45);
+  transform:translateY(-1px);
+}
+.admin-mobile-menu-toggle span{
+  width:24px;
+  height:3px;
+  border-radius:999px;
+  background:#fff;
+  transition:transform .22s ease,opacity .18s ease;
+}
+body.admin-mobile-menu-open .admin-mobile-menu-toggle span:nth-child(1){
+  transform:translateY(9px) rotate(45deg);
+}
+body.admin-mobile-menu-open .admin-mobile-menu-toggle span:nth-child(2){
+  opacity:0;
+}
+body.admin-mobile-menu-open .admin-mobile-menu-toggle span:nth-child(3){
+  transform:translateY(-9px) rotate(-45deg);
+}
+
+@media(max-width:1000px){
+  body.admin-mobile-menu-open{
+    overflow:hidden;
+  }
+  .admin-layout{
+    display:block;
+    grid-template-columns:none;
+    min-height:100vh;
+  }
+  .admin-mobile-bar{
+    position:sticky;
+    top:0;
+    z-index:1200;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    min-height:86px;
+    padding:16px 20px;
+    border-bottom:1px solid var(--admin-line);
+    background:rgba(5,7,19,.9);
+    backdrop-filter:blur(18px);
+  }
+  .admin-mobile-bar .admin-brand{
+    min-width:0;
+  }
+  .admin-mobile-bar .admin-brand-logo{
+    height:52px;
+    max-width:min(270px,calc(100vw - 116px));
+    object-fit:contain;
+  }
+  .admin-mobile-bar .admin-mark{
+    width:42px;
+    height:42px;
+    border-radius:14px;
+  }
+  .admin-mobile-bar .admin-brand span:not(.admin-mark){
+    max-width:170px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .admin-mobile-overlay{
+    position:fixed;
+    inset:0;
+    z-index:1090;
+    display:block;
+    background:rgba(0,0,0,.56);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .22s ease;
+  }
+  body.admin-mobile-menu-open .admin-mobile-overlay{
+    opacity:1;
+    pointer-events:auto;
+  }
+  .sidebar{
+    position:fixed!important;
+    top:0!important;
+    left:0!important;
+    bottom:0!important;
+    z-index:1100;
+    width:min(88vw,380px);
+    height:100vh!important;
+    padding:104px 20px 24px!important;
+    border-right:1px solid var(--admin-line);
+    background:rgba(5,7,19,.96);
+    overflow:auto;
+    transform:translateX(-105%);
+    transition:transform .25s ease;
+    box-shadow:40px 0 80px rgba(0,0,0,.36);
+  }
+  body.admin-mobile-menu-open .sidebar{
+    transform:translateX(0);
+  }
+  .sidebar > .admin-brand{
+    display:none;
+  }
+  .sidebar-nav{
+    margin-top:0;
+  }
+  .sidebar-nav a,
+  .sidebar-nav .nav-parent{
+    font-size:1rem;
+    min-height:48px;
+    padding:13px 14px;
+  }
+  .submenu a{
+    font-size:.9rem!important;
+  }
+  .admin-main{
+    min-width:0;
+  }
+}
+
+@media(max-width:520px){
+  .admin-mobile-bar{
+    min-height:78px;
+    padding:14px 16px;
+  }
+  .admin-mobile-menu-toggle{
+    width:52px;
+    height:52px;
+  }
+  .admin-mobile-menu-toggle span{
+    width:22px;
+  }
+  .admin-mobile-bar .admin-brand-logo{
+    height:46px;
+    max-width:min(245px,calc(100vw - 100px));
+  }
+  .sidebar{
+    width:min(92vw,360px);
+    padding-top:92px!important;
+  }
+}
+
+.media-preview-block{display:grid;gap:8px;margin-top:12px;align-items:start}.media-preview-block>span,.media-preview-block>small{color:var(--admin-muted);font-size:.78rem;font-weight:900;line-height:1.4}.favicon-preview-block{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.favicon-preview{width:48px;height:48px;border-radius:14px;background:#fff;object-fit:contain;border:1px solid rgba(255,255,255,.22);padding:8px}.muted-warning{border-color:rgba(24,184,255,.22);background:rgba(24,184,255,.08);color:#dff5ff}

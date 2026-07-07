@@ -5,7 +5,7 @@
   $currentPageSection = request()->route('section');
 ?>
 
-<aside class="sidebar">
+<aside class="sidebar" id="admin-sidebar">
   <?php echo $__env->make('admin.partials.brand', [
     'href' => route('admin.dashboard'),
     'title' => 'ITQAN Admin',
@@ -67,9 +67,10 @@
       </div>
     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
-    <a class="<?php echo e(request()->routeIs('admin.site-settings.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.site-settings.edit')); ?>">Site Settings &amp; Logo</a>
+    <a class="<?php echo e(request()->routeIs('admin.site-settings.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.site-settings.edit')); ?>">Site Settings, Logo &amp; Favicon</a>
     <a class="<?php echo e(request()->routeIs('admin.header-menu.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.header-menu.index')); ?>">Header Menu</a>
     <a class="<?php echo e(request()->routeIs('admin.footer-menu.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.footer-menu.index')); ?>">Footer Menu</a>
+    <a class="<?php echo e(request()->routeIs('admin.contact-submissions.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.contact-submissions.index')); ?>">Contact Responses</a>
     <a class="<?php echo e(request()->routeIs('admin.social-links.*') ? 'active' : ''); ?>" href="<?php echo e(route('admin.social-links.index')); ?>">Social Links</a>
     <a href="<?php echo e(route('home')); ?>" target="_blank" rel="noopener">View Website</a>
   </nav>

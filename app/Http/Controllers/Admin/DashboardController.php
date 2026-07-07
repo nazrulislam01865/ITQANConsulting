@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ContactSubmission;
 use App\Models\FooterMenuItem;
 use App\Models\HomeSection;
 use App\Models\NavigationMenuItem;
@@ -19,6 +20,8 @@ class DashboardController extends Controller
             'pageSections' => Schema::hasTable('page_sections') ? PageSection::query()->count() : 0,
             'headerMenuItems' => NavigationMenuItem::query()->count(),
             'footerMenuItems' => FooterMenuItem::query()->count(),
+            'contactResponses' => Schema::hasTable('contact_submissions') ? ContactSubmission::query()->count() : 0,
+            'unreadContactResponses' => Schema::hasTable('contact_submissions') ? ContactSubmission::query()->where('status', 'unread')->count() : 0,
         ]);
     }
 }

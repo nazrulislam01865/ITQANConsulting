@@ -5,12 +5,14 @@ if (menuBtn && nav) {
   menuBtn.addEventListener('click', () => {
     const open = nav.classList.toggle('open');
     menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    menuBtn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
   });
 
   nav.querySelectorAll('a').forEach((link) => {
     link.addEventListener('click', () => {
       nav.classList.remove('open');
       menuBtn.setAttribute('aria-expanded', 'false');
+      menuBtn.setAttribute('aria-label', 'Open menu');
     });
   });
 }
@@ -93,8 +95,13 @@ const nextPage = document.getElementById('nextPage');
 const fullBtn = document.getElementById('fullBtn');
 const muteBtn = document.getElementById('muteBtn');
 const thumbToggle = document.getElementById('thumbToggle');
+const catalogSinglePageQuery = window.matchMedia ? window.matchMedia('(max-width: 1000px)') : null;
 let currentCatalogPage = 0;
 let catalogMuted = true;
+
+function isCatalogSinglePageMode() {
+  return catalogSinglePageQuery ? catalogSinglePageQuery.matches : window.innerWidth <= 1000;
+}
 
 function escapeHtml(value) {
   const div = document.createElement('div');
@@ -127,10 +134,23 @@ function catalogPageHtml(page, pageNo) {
 
 function renderCatalog(animate = true) {
   if (!leftPage || !rightPage || !pageIndicator || !thumbs || !catalogTitle || catalogPages.length === 0) return;
-  const leftIndex = Math.max(0, currentCatalogPage - (currentCatalogPage % 2));
-  const rightIndex = Math.min(catalogPages.length - 1, leftIndex + 1);
-  leftPage.innerHTML = catalogPageHtml(catalogPages[leftIndex], leftIndex + 1);
-  rightPage.innerHTML = catalogPageHtml(catalogPages[rightIndex], rightIndex + 1);
+
+  const singlePage = isCatalogSinglePageMode();
+  const leftIndex = singlePage ? currentCatalogPage : Math.max(0, currentCatalogPage - (currentCatalogPage % 2));
+  const rightIndex = singlePage ? currentCatalogPage : Math.min(catalogPages.length - 1, leftIndex + 1);
+
+  if (singlePage) {
+    leftPage.innerHTML = '';
+    leftPage.setAttribute('aria-hidden', 'true');
+    rightPage.innerHTML = catalogPageHtml(catalogPages[currentCatalogPage], currentCatalogPage + 1);
+  } else {
+    leftPage.removeAttribute('aria-hidden');
+    leftPage.innerHTML = catalogPageHtml(catalogPages[leftIndex], leftIndex + 1);
+    rightPage.innerHTML = rightIndex === leftIndex
+      ? ''
+      : catalogPageHtml(catalogPages[rightIndex], rightIndex + 1);
+  }
+
   catalogTitle.textContent = catalogPages[currentCatalogPage]?.title || '';
   pageIndicator.textContent = `Page ${currentCatalogPage + 1} of ${catalogPages.length}`;
   [...thumbs.children].forEach((thumb, index) => thumb.classList.toggle('active', index === currentCatalogPage));
@@ -165,6 +185,9 @@ if (catalogPages.length && thumbs) {
 
 if (prevPage) prevPage.addEventListener('click', () => goCatalogPage(-1));
 if (nextPage) nextPage.addEventListener('click', () => goCatalogPage(1));
+if (catalogSinglePageQuery) {
+  catalogSinglePageQuery.addEventListener('change', () => renderCatalog(false));
+}
 if (fullBtn && catalogStage) fullBtn.addEventListener('click', () => catalogStage.classList.toggle('fullscreen'));
 if (muteBtn) {
   muteBtn.addEventListener('click', () => {

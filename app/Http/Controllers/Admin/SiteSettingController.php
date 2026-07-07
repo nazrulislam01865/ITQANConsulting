@@ -21,8 +21,8 @@ class SiteSettingController extends Controller
 
     public function update(SiteSettingsRequest $request, SiteSettingsService $service): RedirectResponse
     {
-        $data = $request->safe()->except('logo');
-        $service->update($data, $request->file('logo'));
+        $data = $request->safe()->except('logo', 'favicon');
+        $service->update($data, $request->file('logo'), $request->file('favicon'));
 
         return back()->with('success', 'Site settings updated successfully.');
     }

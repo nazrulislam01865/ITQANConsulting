@@ -16,9 +16,27 @@
               @foreach($service['points'] as $point)<li>{{ $point }}</li>@endforeach
             </ul>
             @php
-              $serviceButtonHref = !empty($service['button_url'])
-                ? $service['button_url']
-                : ((!empty($service['button_route']) && \Illuminate\Support\Facades\Route::has($service['button_route'])) ? route($service['button_route']) : route('contact'));
+              $contactServiceKeys = [
+                  '01' => 'consulting-business-clarity',
+                  '02' => 'project-product-support',
+                  '03' => 'software-web-development',
+                  '04' => 'erp-automation',
+              ];
+
+              $serviceSelectionKey = $contactServiceKeys[$service['badge'] ?? '']
+                  ?? \Illuminate\Support\Str::slug($service['title'] ?? 'service');
+
+              if (!empty($service['button_url'])) {
+                  $serviceButtonHref = $service['button_url'];
+              } else {
+                  $routeName = (!empty($service['button_route']) && \Illuminate\Support\Facades\Route::has($service['button_route']))
+                      ? $service['button_route']
+                      : 'contact';
+
+                  $serviceButtonHref = $routeName === 'contact'
+                      ? route('contact', ['service' => $serviceSelectionKey]) . '#contact-form'
+                      : route($routeName);
+              }
             @endphp
             <a class="btn" href="{{ $serviceButtonHref }}">{{ $service['button'] }}</a>
           </article>

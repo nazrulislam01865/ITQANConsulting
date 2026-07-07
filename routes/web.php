@@ -10,7 +10,9 @@ use App\Http\Controllers\Admin\PageContentController;
 use App\Http\Controllers\Admin\PageSectionItemController;
 use App\Http\Controllers\Admin\SiteSettingController;
 use App\Http\Controllers\Admin\SocialLinkController;
+use App\Http\Controllers\Admin\ContactSubmissionController as AdminContactSubmissionController;
 use App\Http\Controllers\Frontend\PageController;
+use App\Http\Controllers\Frontend\ContactSubmissionController as FrontendContactSubmissionController;
 use App\Http\Controllers\PublicStorageController;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +24,7 @@ Route::get('/works', [PageController::class, 'works'])->name('works');
 Route::get('/catalog', [PageController::class, 'catalog'])->name('catalog');
 Route::get('/catalog/download', [PageController::class, 'downloadCatalog'])->name('catalog.download');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
+Route::post('/contact', [FrontendContactSubmissionController::class, 'store'])->middleware('throttle:contact-form')->name('contact.submit');
 Route::get('/storage/{path}', [PublicStorageController::class, 'show'])->where('path', '.*')->name('storage.public');
 
 Route::prefix('admin')->name('admin.')->group(function (): void {
@@ -45,6 +48,10 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
         Route::post('/footer-menu', [FooterMenuController::class, 'store'])->name('footer-menu.store');
         Route::put('/footer-menu/{menuItem}', [FooterMenuController::class, 'update'])->name('footer-menu.update');
         Route::delete('/footer-menu/{menuItem}', [FooterMenuController::class, 'destroy'])->name('footer-menu.destroy');
+
+        Route::get('/contact-responses', [AdminContactSubmissionController::class, 'index'])->name('contact-submissions.index');
+        Route::get('/contact-responses/{contactSubmission}', [AdminContactSubmissionController::class, 'show'])->name('contact-submissions.show');
+        Route::delete('/contact-responses/{contactSubmission}', [AdminContactSubmissionController::class, 'destroy'])->name('contact-submissions.destroy');
 
         Route::get('/social-links', [SocialLinkController::class, 'index'])->name('social-links.index');
         Route::post('/social-links', [SocialLinkController::class, 'store'])->name('social-links.store');

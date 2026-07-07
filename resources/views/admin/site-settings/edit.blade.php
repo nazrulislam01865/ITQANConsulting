@@ -1,12 +1,16 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Site Settings & Logo')
+@section('title', 'Site Settings, Logo & Favicon')
 
 @section('content')
+@php
+  $favicon = \App\Support\Favicon::current();
+@endphp
+
 <div class="page-head">
   <div>
-    <h2>Brand, logo, and global content.</h2>
-    <p>Upload a full image logo and update global text used by the frontend header and footer.</p>
+    <h2>Brand, logo, favicon, and global content.</h2>
+    <p>Upload the frontend logo, browser tab favicon, and update global text used by the frontend header and footer.</p>
   </div>
 </div>
 
@@ -25,11 +29,27 @@
     </div>
     <div class="field">
       <label for="logo">Logo image</label>
-      <input id="logo" name="logo" type="file" accept="image/*">
+      <input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp">
+      <div class="help">Recommended: transparent PNG or WEBP. Maximum size: 2 MB.</div>
       @if($settings?->logoUrl())
-        <img class="logo-preview" src="{{ $settings->logoUrl() }}" alt="Current logo">
+        <div class="media-preview-block">
+          <span>Current logo</span>
+          <img class="logo-preview" src="{{ $settings->logoUrl() }}" alt="Current logo">
+        </div>
       @elseif(! empty($settings?->logo_path))
         <div class="upload-warning">The saved logo file was not found. Please upload the logo again.</div>
+      @endif
+    </div>
+    <div class="field">
+      <label for="favicon">Browser favicon</label>
+      <input id="favicon" name="favicon" type="file" accept=".ico,image/png,image/jpeg,image/webp">
+      <div class="help">Upload the icon shown in browser tabs. Supported: ICO, PNG, WEBP, JPG/JPEG. Maximum size: 1 MB.</div>
+      @if($favicon)
+        <div class="media-preview-block favicon-preview-block">
+          <span>Current favicon</span>
+          <img class="favicon-preview" src="{{ asset($favicon['path']) }}?v={{ $favicon['version'] }}" alt="Current favicon">
+          <small>{{ $favicon['path'] }}</small>
+        </div>
       @endif
     </div>
     <div class="field">
