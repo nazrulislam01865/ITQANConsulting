@@ -447,7 +447,7 @@
 
     /* Catalog */
     .catalog-stage{border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.035));border-radius:36px;padding:22px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-    .catalog-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}.catalog-title{font-family:"Space Grotesk";font-size:1.2rem;font-weight:900;letter-spacing:-.03em}.catalog-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .catalog-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}.catalog-title{font-family:"Space Grotesk";font-size:1.2rem;font-weight:900;letter-spacing:-.03em}.catalog-actions{display:flex;gap:8px;flex-wrap:wrap}.catalog-fullscreen-action{display:inline-flex}
     .book-wrap{position:relative;min-height:630px;border-radius:30px;background:radial-gradient(circle at 50% 30%, rgba(24,184,255,.1), transparent 32%), #02040c;display:grid;place-items:center;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
     .book{width:min(880px,90%);height:560px;display:grid;grid-template-columns:1fr 1fr;perspective:1800px;filter:drop-shadow(0 35px 55px rgba(0,0,0,.4))}
     .page-sheet{background:#f8f4eb;color:#0e1421;padding:42px;border-radius:18px 0 0 18px;position:relative;overflow:hidden;border-right:1px solid rgba(5,7,19,.13)}
@@ -477,6 +477,7 @@
 
     /* responsive */
     @media (max-width:1000px){
+      .catalog-fullscreen-action{display:none}
       .navlinks{display:none;position:absolute;top:76px;left:20px;right:20px;border-radius:24px;background:rgba(5,7,19,.96);padding:12px;flex-direction:column;align-items:stretch}.navlinks.open{display:flex}.navlinks a{padding:14px 16px}.menu-btn{display:inline-flex}.motion-toggle{display:none}.nav-actions .btn{display:none}.hero-grid,.split,.process-wrap,.form-wrap{grid-template-columns:1fr}.hero-visual{min-height:520px;order:-1}.home-hero{min-height:auto;padding:92px 0 64px}.hero h1{font-size:clamp(3.4rem,16vw,7.4rem)}.short-lines{grid-template-columns:1fr}.card-grid,.card-grid.two,.card-grid.four,.notes-grid{grid-template-columns:1fr 1fr}.founder-card{grid-template-columns:1fr}.portrait{min-height:360px}.book{grid-template-columns:1fr;width:min(520px,88%);height:560px}.page-sheet.left{display:none}.page-sheet.right{border-radius:18px}.catalog-control.prev{left:12px}.catalog-control.next{right:12px}.footer-grid{grid-template-columns:1fr 1fr}
     }
     @media (max-width:680px){

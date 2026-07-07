@@ -13,7 +13,7 @@
       <div class="catalog-stage reveal" id="catalogStage">
         <div class="catalog-top">
           <div><div class="eyebrow">{{ $page['viewer']['eyebrow'] ?? 'Catalog Viewer' }}</div><div class="catalog-title" id="catalogTitle">{{ $page['viewer']['title'] ?? 'ITQAN Service Profile' }}</div></div>
-          <div class="catalog-actions"><button class="btn small" id="thumbToggle" type="button">Thumbnails</button><button class="btn small" id="fullBtn" type="button">Fullscreen</button><button class="btn small" id="muteBtn" type="button">Mute</button><a class="btn small" href="{{ route('catalog.download') }}">Download PDF</a></div>
+          <div class="catalog-actions"><button class="btn small catalog-fullscreen-action" id="fullBtn" type="button">Fullscreen</button><a class="btn small" href="{{ route('catalog.download') }}">Download PDF</a></div>
         </div>
         <div class="book-wrap" id="bookWrap">
           <button class="catalog-control prev" id="prevPage" type="button" aria-label="Previous page">‹</button>
