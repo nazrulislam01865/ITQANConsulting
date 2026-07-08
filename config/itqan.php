@@ -104,8 +104,7 @@ return [
             ['type' => 'image', 'title' => 'Contact ITQAN', 'kicker' => 'Next step', 'body' => 'Bring the messy business problem. We will help make it clear.'],
         ],
         'contact_options' => [
-            'needs' => ['Not sure yet', 'Business process', 'Software development', 'ERP', 'Website', 'Automation', 'Project management', 'Training', 'Dedicated team'],
-            'areas' => ['Business<br>process', 'Project<br>management', 'Software<br>development', 'ERP', 'Website', 'Automation', 'Training'],
+            'needs' => ['Not sure yet', 'Business process', 'Project management', 'Software development', 'ERP', 'Website', 'Automation', 'Training', 'Dedicated team'],
             'methods' => ['WhatsApp', 'Email', 'Phone call', 'Google Meet'],
         ],
     ],

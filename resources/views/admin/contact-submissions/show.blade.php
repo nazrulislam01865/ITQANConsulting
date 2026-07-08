@@ -30,7 +30,6 @@
   <div class="card light">
     <h3>Request Details</h3>
     <p><strong>Need:</strong> {{ $submission->need ?: '—' }}</p>
-    <p><strong>Areas:</strong> {{ is_array($submission->areas) && count($submission->areas) ? implode(', ', $submission->areas) : '—' }}</p>
     <p><strong>Budget:</strong> {{ $submission->budget_range ?: '—' }}</p>
     <p><strong>Preferred Method:</strong> {{ $submission->preferred_contact_method ?: '—' }}</p>
   </div>

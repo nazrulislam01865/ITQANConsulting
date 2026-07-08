@@ -490,7 +490,6 @@ class ItqanFrontendContentService
 
             $content['collections']['contact_options'] = [
                 'needs' => $this->lines((string) ($section->settings['needs'] ?? '')),
-                'areas' => $this->lines((string) ($section->settings['areas'] ?? '')),
                 'methods' => $this->lines((string) ($section->settings['methods'] ?? '')),
             ];
         }

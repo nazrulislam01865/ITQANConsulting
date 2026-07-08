@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ asset('assets/css/itqan-template.css') }}?v=catalog-actions-1">
+  <link rel="stylesheet" href="{{ asset('assets/css/itqan-template.css') }}?v=work-image-link-1">
   @vite(['resources/js/app.js'])
   @stack('head')
 </head>
@@ -25,6 +25,13 @@
   </div>
 
   @include('frontend.partials.footer')
+
+  <button class="back-to-top" id="backToTop" type="button" aria-label="Back to top" title="Back to top" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 5.75 5.75 12l1.42 1.42L11 9.59V19h2V9.59l3.83 3.83L18.25 12 12 5.75Z" />
+    </svg>
+  </button>
+
   @stack('scripts')
 </body>
 </html>

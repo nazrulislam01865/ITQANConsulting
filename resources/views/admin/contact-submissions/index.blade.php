@@ -43,12 +43,7 @@
               <br><span class="muted">{{ $item->phone }}</span>
             @endif
           </td>
-          <td>
-            {{ $item->need ?: '—' }}
-            @if(is_array($item->areas) && count($item->areas))
-              <br><span class="muted">{{ implode(', ', $item->areas) }}</span>
-            @endif
-          </td>
+          <td>{{ $item->need ?: '—' }}</td>
           <td>{{ \Illuminate\Support\Str::limit($item->message, 90) }}</td>
           <td><span class="pill {{ $item->status === 'unread' ? '' : 'off' }}">{{ ucfirst($item->status) }}</span></td>
           <td class="button-row">

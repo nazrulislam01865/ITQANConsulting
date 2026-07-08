@@ -12,69 +12,54 @@
   };
 
   $serviceSelections = [
-      'consulting-business-clarity' => [
-          'need' => 'Business process',
-          'areas' => ['Business process'],
-      ],
-      'project-product-support' => [
-          'need' => 'Project management',
-          'areas' => ['Project management'],
-      ],
-      'software-web-development' => [
-          'need' => 'Software development',
-          'areas' => ['Software development', 'Website'],
-      ],
-      'erp-automation' => [
-          'need' => 'ERP',
-          'areas' => ['ERP', 'Automation'],
-      ],
+      'consulting-business-clarity' => 'Business process',
+      'project-product-support' => 'Project management',
+      'software-web-development' => 'Software development',
+      'erp-automation' => 'ERP',
+      'training-coaching' => 'Training',
+      'dedicated-team-support' => 'Dedicated team',
   ];
 
   $requestedService = (string) request()->query('service', '');
   $selectedNeed = (string) request()->query('need', '');
-  $selectedAreas = request()->query('areas', request()->query('area', []));
-
-  if (is_string($selectedAreas)) {
-      $selectedAreas = array_filter(array_map('trim', explode(',', $selectedAreas)));
-  }
-
-  if (! is_array($selectedAreas)) {
-      $selectedAreas = [];
-  }
 
   if (isset($serviceSelections[$requestedService])) {
-      $selectedNeed = $serviceSelections[$requestedService]['need'];
-      $selectedAreas = $serviceSelections[$requestedService]['areas'];
+      $selectedNeed = $serviceSelections[$requestedService];
   }
 
   $contactNeeds = $collections['contact_options']['needs'] ?? [];
-  $contactAreas = $collections['contact_options']['areas'] ?? [];
   $contactMethods = $collections['contact_options']['methods'] ?? [];
 
+  $requiredNeeds = [
+      'Not sure yet',
+      'Business process',
+      'Project management',
+      'Software development',
+      'ERP',
+      'Website',
+      'Automation',
+      'Training',
+      'Dedicated team',
+  ];
+
   $needKeys = array_map($normalizeContactOption, $contactNeeds);
-  if ($selectedNeed !== '' && ! in_array($normalizeContactOption($selectedNeed), $needKeys, true)) {
-      $contactNeeds[] = $selectedNeed;
+  foreach ($requiredNeeds as $requiredNeed) {
+      $requiredNeedKey = $normalizeContactOption($requiredNeed);
+      if ($requiredNeedKey !== '' && ! in_array($requiredNeedKey, $needKeys, true)) {
+          $contactNeeds[] = $requiredNeed;
+          $needKeys[] = $requiredNeedKey;
+      }
   }
 
-  $areaKeys = array_map($normalizeContactOption, $contactAreas);
-  foreach ($selectedAreas as $selectedArea) {
-      $selectedAreaKey = $normalizeContactOption($selectedArea);
-      if ($selectedAreaKey !== '' && ! in_array($selectedAreaKey, $areaKeys, true)) {
-          $contactAreas[] = $selectedArea;
-          $areaKeys[] = $selectedAreaKey;
-      }
+  if ($selectedNeed !== '' && ! in_array($normalizeContactOption($selectedNeed), $needKeys, true)) {
+      $contactNeeds[] = $selectedNeed;
   }
 
   if (old('need') !== null) {
       $selectedNeed = (string) old('need');
   }
 
-  if (old('areas') !== null) {
-      $selectedAreas = is_array(old('areas')) ? old('areas') : [];
-  }
-
   $selectedNeedKey = $normalizeContactOption($selectedNeed);
-  $selectedAreaKeys = array_values(array_filter(array_map($normalizeContactOption, $selectedAreas)));
 @endphp
 
 <main id="contact" class="page active">
@@ -110,21 +95,6 @@
                 <option value="{{ $optionText }}" @selected($selectedNeedKey !== '' && $normalizeContactOption($optionText) === $selectedNeedKey)>{{ $optionText }}</option>
               @endforeach
             </select>
-          </div>
-          <div class="field full">
-            <label>Areas</label>
-            <div class="checks">
-              @foreach($contactAreas as $index => $area)
-                @php
-                  $areaText = $cleanContactOption($area);
-                  $areaSelected = in_array($normalizeContactOption($areaText), $selectedAreaKeys, true);
-                @endphp
-                <label class="check {{ $areaSelected ? 'selected' : '' }}">
-                  <span>{!! $area !!}</span>
-                  <input type="checkbox" name="areas[]" value="{{ $areaText }}" @checked($areaSelected)>
-                </label>
-              @endforeach
-            </div>
           </div>
           <div class="field"><label for="budget">Budget range, optional</label><input id="budget" name="budget" type="text" value="{{ old('budget') }}" placeholder="Example: 1–3 lakh BDT"></div>
           <div class="field">

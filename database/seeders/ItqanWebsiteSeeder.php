@@ -277,7 +277,6 @@ class ItqanWebsiteSeeder extends Seeder
             'lead' => $contact['side_note']['text'],
             'settings' => [
                 'needs' => implode("\n", $content['collections']['contact_options']['needs']),
-                'areas' => implode("\n", $content['collections']['contact_options']['areas']),
                 'methods' => implode("\n", $content['collections']['contact_options']['methods']),
             ],
         ]);

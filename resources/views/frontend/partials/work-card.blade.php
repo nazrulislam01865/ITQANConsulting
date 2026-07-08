@@ -14,11 +14,11 @@
 @endphp
 
 <article class="work-card reveal" @if($categories) data-cats="{{ $categories }}" @endif>
-  <div class="work-visual {{ $workImageUrl ? 'has-image' : '' }}">
+  <a class="work-visual work-visual-link {{ $workImageUrl ? 'has-image' : '' }}" href="{{ $buttonHref }}" aria-label="Open {{ $work['title'] ?? 'work item' }}">
     @if($workImageUrl)
       <img src="{{ $workImageUrl }}" alt="{{ $work['title'] ?? 'Work image' }}">
     @endif
-  </div>
+  </a>
   <div class="work-copy">
     <span class="pill">{{ $pill ?? ($work['pill'] ?? '') }}</span>
     <h3>{{ $work['title'] ?? '' }}</h3>

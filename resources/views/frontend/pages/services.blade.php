@@ -21,6 +21,8 @@
                   '02' => 'project-product-support',
                   '03' => 'software-web-development',
                   '04' => 'erp-automation',
+                  '05' => 'training-coaching',
+                  '06' => 'dedicated-team-support',
               ];
 
               $serviceSelectionKey = $contactServiceKeys[$service['badge'] ?? '']

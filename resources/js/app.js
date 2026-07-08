@@ -213,3 +213,25 @@ if (bookWrap) {
   }, { passive: true });
 }
 renderCatalog(false);
+
+// Floating back-to-top button
+const backToTop = document.getElementById('backToTop');
+if (backToTop) {
+  const toggleBackToTop = () => {
+    const show = window.scrollY > 360;
+    backToTop.hidden = false;
+    backToTop.classList.toggle('is-visible', show);
+    backToTop.setAttribute('aria-hidden', show ? 'false' : 'true');
+    backToTop.tabIndex = show ? 0 : -1;
+  };
+
+  backToTop.addEventListener('click', () => {
+    const reducedMotion = document.body.classList.contains('no-motion')
+      || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
+  });
+
+  toggleBackToTop();
+  window.addEventListener('scroll', toggleBackToTop, { passive: true });
+}
+
