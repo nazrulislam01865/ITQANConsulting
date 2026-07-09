@@ -1,0 +1,635 @@
+{
+  "width": 1200,
+  "height": 800,
+  "settings": {
+    "metersPerPixel": 1.45,
+    "walkMetersPerMinute": 75,
+    "buggyMetersPerMinute": 180
+  },
+  "categories": [
+    {
+      "id": "all",
+      "name": "All"
+    },
+    {
+      "id": "arrival",
+      "name": "Arrival"
+    },
+    {
+      "id": "stay",
+      "name": "Stay"
+    },
+    {
+      "id": "food",
+      "name": "Food"
+    },
+    {
+      "id": "activity",
+      "name": "Activities"
+    },
+    {
+      "id": "service",
+      "name": "Service"
+    },
+    {
+      "id": "emergency",
+      "name": "Emergency"
+    }
+  ],
+  "places": [
+    {
+      "id": "reception",
+      "name": "Reception & Lobby",
+      "cat": "arrival",
+      "icon": "🏨",
+      "no": 1,
+      "x": 522,
+      "y": 585,
+      "routeNode": "n_lobby",
+      "desc": "Check-in, guest help desk, lost and found"
+    },
+    {
+      "id": "parking",
+      "name": "Guest Parking",
+      "cat": "arrival",
+      "icon": "🅿️",
+      "no": 2,
+      "x": 130,
+      "y": 432,
+      "routeNode": "n_parking",
+      "desc": "Main car parking and drop-off area"
+    },
+    {
+      "id": "tower",
+      "name": "Tower Rooms",
+      "cat": "stay",
+      "icon": "🏢",
+      "no": 3,
+      "x": 666,
+      "y": 590,
+      "routeNode": "n_tower",
+      "desc": "Main tower building and room elevators"
+    },
+    {
+      "id": "villas",
+      "name": "Garden Villas",
+      "cat": "stay",
+      "icon": "🏡",
+      "no": 4,
+      "x": 222,
+      "y": 348,
+      "routeNode": "n_villas",
+      "desc": "Private villa area beside the small lake"
+    },
+    {
+      "id": "presidential",
+      "name": "Presidential Suite",
+      "cat": "stay",
+      "icon": "👑",
+      "no": 5,
+      "x": 437,
+      "y": 357,
+      "routeNode": "n_pres",
+      "desc": "Premium suite block with private access"
+    },
+    {
+      "id": "restaurant",
+      "name": "Buffet Restaurant",
+      "cat": "food",
+      "icon": "🍽️",
+      "no": 6,
+      "x": 892,
+      "y": 194,
+      "routeNode": "n_resto",
+      "desc": "Breakfast, lunch, dinner and buffet service"
+    },
+    {
+      "id": "cafe",
+      "name": "Lake Café",
+      "cat": "food",
+      "icon": "☕",
+      "no": 7,
+      "x": 834,
+      "y": 623,
+      "routeNode": "n_cafe",
+      "desc": "Coffee, snacks and lakeside seating"
+    },
+    {
+      "id": "pool",
+      "name": "Family Pool",
+      "cat": "activity",
+      "icon": "🏊",
+      "no": 8,
+      "x": 952,
+      "y": 354,
+      "routeNode": "n_pool",
+      "desc": "Main family swimming pool"
+    },
+    {
+      "id": "waterzone",
+      "name": "Water Zone",
+      "cat": "activity",
+      "icon": "💦",
+      "no": 9,
+      "x": 1050,
+      "y": 446,
+      "routeNode": "n_water",
+      "desc": "Slides, water play and family activity zone"
+    },
+    {
+      "id": "kids",
+      "name": "Kids Zone",
+      "cat": "activity",
+      "icon": "🧸",
+      "no": 10,
+      "x": 652,
+      "y": 294,
+      "routeNode": "n_kids",
+      "desc": "Children play area and supervised activities"
+    },
+    {
+      "id": "movie",
+      "name": "Movie Theater",
+      "cat": "activity",
+      "icon": "🎬",
+      "no": 11,
+      "x": 1038,
+      "y": 566,
+      "routeNode": "n_movie",
+      "desc": "Indoor cinema and evening shows"
+    },
+    {
+      "id": "buggy",
+      "name": "Buggy Stand",
+      "cat": "service",
+      "icon": "🛺",
+      "no": 12,
+      "x": 604,
+      "y": 505,
+      "routeNode": "n_buggy",
+      "desc": "Buggy pickup/drop-off point"
+    },
+    {
+      "id": "prayer",
+      "name": "Prayer Room",
+      "cat": "service",
+      "icon": "🕌",
+      "no": 13,
+      "x": 384,
+      "y": 512,
+      "routeNode": "n_prayer",
+      "desc": "Prayer and quiet room"
+    },
+    {
+      "id": "clinic",
+      "name": "First Aid",
+      "cat": "emergency",
+      "icon": "➕",
+      "no": 14,
+      "x": 324,
+      "y": 264,
+      "routeNode": "n_clinic",
+      "desc": "Basic medical help and emergency response"
+    }
+  ],
+  "nodes": {
+    "n_gate": {
+      "x": 60,
+      "y": 440,
+      "label": "Entrance gate"
+    },
+    "n_parking": {
+      "x": 130,
+      "y": 432,
+      "label": "Guest parking"
+    },
+    "n_cross1": {
+      "x": 236,
+      "y": 436,
+      "label": "Reception drive"
+    },
+    "n_villas": {
+      "x": 222,
+      "y": 348,
+      "label": "Garden villas"
+    },
+    "n_clinic": {
+      "x": 324,
+      "y": 264,
+      "label": "First aid"
+    },
+    "n_pres": {
+      "x": 437,
+      "y": 357,
+      "label": "Presidential suite"
+    },
+    "n_lawn": {
+      "x": 538,
+      "y": 334,
+      "label": "Main lawn"
+    },
+    "n_kids": {
+      "x": 652,
+      "y": 294,
+      "label": "Kids zone"
+    },
+    "n_resto": {
+      "x": 892,
+      "y": 194,
+      "label": "Buffet restaurant"
+    },
+    "n_lake_n": {
+      "x": 834,
+      "y": 312,
+      "label": "North lake road"
+    },
+    "n_pool": {
+      "x": 952,
+      "y": 354,
+      "label": "Family pool"
+    },
+    "n_water": {
+      "x": 1050,
+      "y": 446,
+      "label": "Water zone"
+    },
+    "n_movie": {
+      "x": 1038,
+      "y": 566,
+      "label": "Movie theater"
+    },
+    "n_cafe": {
+      "x": 834,
+      "y": 623,
+      "label": "Lake café"
+    },
+    "n_tower": {
+      "x": 666,
+      "y": 590,
+      "label": "Tower rooms"
+    },
+    "n_lobby": {
+      "x": 522,
+      "y": 585,
+      "label": "Reception and lobby"
+    },
+    "n_buggy": {
+      "x": 604,
+      "y": 505,
+      "label": "Buggy stand"
+    },
+    "n_prayer": {
+      "x": 384,
+      "y": 512,
+      "label": "Prayer room"
+    },
+    "n_loop": {
+      "x": 742,
+      "y": 458,
+      "label": "Lake road junction"
+    },
+    "n_south": {
+      "x": 342,
+      "y": 612,
+      "label": "Garden walk"
+    }
+  },
+  "edges": [
+    {
+      "a": "n_gate",
+      "b": "n_parking",
+      "points": [
+        [
+          60,
+          440
+        ],
+        [
+          130,
+          432
+        ]
+      ]
+    },
+    {
+      "a": "n_parking",
+      "b": "n_cross1",
+      "points": [
+        [
+          130,
+          432
+        ],
+        [
+          236,
+          436
+        ]
+      ]
+    },
+    {
+      "a": "n_cross1",
+      "b": "n_villas",
+      "points": [
+        [
+          236,
+          436
+        ],
+        [
+          222,
+          348
+        ]
+      ]
+    },
+    {
+      "a": "n_villas",
+      "b": "n_clinic",
+      "points": [
+        [
+          222,
+          348
+        ],
+        [
+          324,
+          264
+        ]
+      ]
+    },
+    {
+      "a": "n_cross1",
+      "b": "n_south",
+      "points": [
+        [
+          236,
+          436
+        ],
+        [
+          342,
+          612
+        ]
+      ]
+    },
+    {
+      "a": "n_south",
+      "b": "n_prayer",
+      "points": [
+        [
+          342,
+          612
+        ],
+        [
+          384,
+          512
+        ]
+      ]
+    },
+    {
+      "a": "n_prayer",
+      "b": "n_lobby",
+      "points": [
+        [
+          384,
+          512
+        ],
+        [
+          522,
+          585
+        ]
+      ]
+    },
+    {
+      "a": "n_lobby",
+      "b": "n_tower",
+      "points": [
+        [
+          522,
+          585
+        ],
+        [
+          666,
+          590
+        ]
+      ]
+    },
+    {
+      "a": "n_lobby",
+      "b": "n_buggy",
+      "points": [
+        [
+          522,
+          585
+        ],
+        [
+          604,
+          505
+        ]
+      ]
+    },
+    {
+      "a": "n_buggy",
+      "b": "n_loop",
+      "points": [
+        [
+          604,
+          505
+        ],
+        [
+          742,
+          458
+        ]
+      ]
+    },
+    {
+      "a": "n_loop",
+      "b": "n_pool",
+      "points": [
+        [
+          742,
+          458
+        ],
+        [
+          952,
+          354
+        ]
+      ]
+    },
+    {
+      "a": "n_pool",
+      "b": "n_water",
+      "points": [
+        [
+          952,
+          354
+        ],
+        [
+          1050,
+          446
+        ]
+      ]
+    },
+    {
+      "a": "n_water",
+      "b": "n_movie",
+      "points": [
+        [
+          1050,
+          446
+        ],
+        [
+          1038,
+          566
+        ]
+      ]
+    },
+    {
+      "a": "n_movie",
+      "b": "n_cafe",
+      "points": [
+        [
+          1038,
+          566
+        ],
+        [
+          834,
+          623
+        ]
+      ]
+    },
+    {
+      "a": "n_cafe",
+      "b": "n_tower",
+      "points": [
+        [
+          834,
+          623
+        ],
+        [
+          666,
+          590
+        ]
+      ]
+    },
+    {
+      "a": "n_tower",
+      "b": "n_buggy",
+      "points": [
+        [
+          666,
+          590
+        ],
+        [
+          604,
+          505
+        ]
+      ]
+    },
+    {
+      "a": "n_loop",
+      "b": "n_lake_n",
+      "points": [
+        [
+          742,
+          458
+        ],
+        [
+          834,
+          312
+        ]
+      ]
+    },
+    {
+      "a": "n_lake_n",
+      "b": "n_resto",
+      "points": [
+        [
+          834,
+          312
+        ],
+        [
+          892,
+          194
+        ]
+      ]
+    },
+    {
+      "a": "n_lake_n",
+      "b": "n_kids",
+      "points": [
+        [
+          834,
+          312
+        ],
+        [
+          652,
+          294
+        ]
+      ]
+    },
+    {
+      "a": "n_kids",
+      "b": "n_lawn",
+      "points": [
+        [
+          652,
+          294
+        ],
+        [
+          538,
+          334
+        ]
+      ]
+    },
+    {
+      "a": "n_lawn",
+      "b": "n_pres",
+      "points": [
+        [
+          538,
+          334
+        ],
+        [
+          437,
+          357
+        ]
+      ]
+    },
+    {
+      "a": "n_pres",
+      "b": "n_prayer",
+      "points": [
+        [
+          437,
+          357
+        ],
+        [
+          384,
+          512
+        ]
+      ]
+    },
+    {
+      "a": "n_lawn",
+      "b": "n_buggy",
+      "points": [
+        [
+          538,
+          334
+        ],
+        [
+          604,
+          505
+        ]
+      ]
+    },
+    {
+      "a": "n_pool",
+      "b": "n_resto",
+      "points": [
+        [
+          952,
+          354
+        ],
+        [
+          892,
+          194
+        ]
+      ]
+    }
+  ]
+}

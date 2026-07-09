@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\SocialLinkController;
 use App\Http\Controllers\Admin\ContactSubmissionController as AdminContactSubmissionController;
 use App\Http\Controllers\Frontend\PageController;
 use App\Http\Controllers\Frontend\ContactSubmissionController as FrontendContactSubmissionController;
+use App\Http\Controllers\External\ItqanGuestMapController;
 use App\Http\Controllers\PublicStorageController;
 use App\Http\Middleware\EnsureAdminAuthenticated;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +28,14 @@ Route::get('/contact', [PageController::class, 'contact'])->name('contact');
 Route::post('/contact', [FrontendContactSubmissionController::class, 'store'])->middleware('throttle:contact-form')->name('contact.submit');
 Route::get('/storage/{path}', [PublicStorageController::class, 'show'])->where('path', '.*')->name('storage.public');
 
+Route::prefix('external-guest-map')->name('external-guest-map.')->group(function (): void {
+    Route::get('/', [ItqanGuestMapController::class, 'index'])->name('index');
+    Route::get('/api/data', [ItqanGuestMapController::class, 'data'])->name('api.data');
+    Route::get('/api/route', [ItqanGuestMapController::class, 'route'])->name('api.route');
+    Route::post('/api/location', [ItqanGuestMapController::class, 'trackLocation'])->name('api.location');
+    Route::post('/api/route-log/{routeLog}/finish', [ItqanGuestMapController::class, 'finishNavigation'])->name('api.finish');
+});
+
 Route::prefix('admin')->name('admin.')->group(function (): void {
     Route::get('/login', [AdminLoginController::class, 'show'])->name('login');
     Route::post('/login', [AdminLoginController::class, 'store'])->middleware('throttle:admin-login')->name('login.store');
@@ -35,6 +44,7 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
     Route::middleware(EnsureAdminAuthenticated::class)->group(function (): void {
         Route::post('/logout', [AdminLoginController::class, 'destroy'])->name('logout');
         Route::get('/', DashboardController::class)->name('dashboard');
+
 
         Route::get('/site-settings', [SiteSettingController::class, 'edit'])->name('site-settings.edit');
         Route::put('/site-settings', [SiteSettingController::class, 'update'])->name('site-settings.update');
