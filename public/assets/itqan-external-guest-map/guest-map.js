@@ -15,7 +15,12 @@
     selectedFrom: null,
     selectedTo: null,
     activeRoute: null,
+    activeRouteBounds: null,
     toastTimer: null,
+    viewportTimer: null,
+    viewportWidth: 0,
+    viewportHeight: 0,
+    viewportOrientation: '',
   };
 
   const el = {
@@ -57,8 +62,43 @@
   }
 
   function isMobile() {
-    return window.matchMedia('(max-width: 900px)').matches;
+    return window.matchMedia('(max-width: 900px), (max-width: 1100px) and (max-height: 600px)').matches;
   }
+
+  function isCompactLandscape() {
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+    return isMobile() && window.matchMedia('(orientation: landscape)').matches && viewportHeight <= 600;
+  }
+
+  function syncViewportMetrics(options = {}) {
+    const viewport = window.visualViewport;
+    const height = Math.max(240, Math.round(viewport?.height || window.innerHeight));
+    const width = Math.max(280, Math.round(viewport?.width || window.innerWidth));
+    const offsetTop = Math.max(0, Math.round(viewport?.offsetTop || 0));
+    const orientation = width >= height ? 'landscape' : 'portrait';
+    const widthChanged = Math.abs(width - state.viewportWidth) > 36;
+    const orientationChanged = Boolean(state.viewportOrientation && state.viewportOrientation !== orientation);
+
+    state.viewportWidth = width;
+    state.viewportHeight = height;
+    state.viewportOrientation = orientation;
+
+    document.documentElement.style.setProperty('--app-height', `${height}px`);
+    document.documentElement.style.setProperty('--app-width', `${width}px`);
+    document.documentElement.style.setProperty('--visual-offset-top', `${offsetTop}px`);
+
+    if (!state.map) return;
+    clearTimeout(state.viewportTimer);
+    state.viewportTimer = setTimeout(() => {
+      state.map.invalidateSize(false);
+      if (options.refit || widthChanged || orientationChanged) {
+        refitCurrentView(false);
+      }
+      updateZoomButtons();
+    }, 90);
+  }
+
+  syncViewportMetrics();
 
   function pointToLatLng(point) {
     return L.latLng(Number(point.y), Number(point.x));
@@ -121,7 +161,7 @@
       maxBoundsViscosity: 0.35,
     });
 
-    L.imageOverlay(mapData.image, state.bounds, {interactive: false}).addTo(state.map);
+    L.imageOverlay(mapData.image, state.bounds, {interactive: false, className: 'resort-template-overlay'}).addTo(state.map);
     state.map.setMaxBounds(state.bounds.pad(0.32));
     drawRoadNetwork();
     drawPlaces();
@@ -336,12 +376,23 @@
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') collapsePanel();
     });
-    window.addEventListener('resize', () => {
-      state.map.invalidateSize(false);
+    const handleViewportChange = () => {
+      syncViewportMetrics();
       updateLabelVisibility();
-      updateZoomButtons();
       if (!isMobile()) collapsePanel();
-    });
+    };
+    window.addEventListener('resize', handleViewportChange, {passive: true});
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => syncViewportMetrics({refit: true}), 160);
+    }, {passive: true});
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange, {passive: true});
+      window.visualViewport.addEventListener('scroll', () => syncViewportMetrics(), {passive: true});
+    }
+    if ('ResizeObserver' in window) {
+      const observer = new ResizeObserver(() => syncViewportMetrics());
+      observer.observe(el.app);
+    }
   }
 
   function handlePopupAction(event) {
@@ -447,15 +498,8 @@
     }).addTo(state.map);
 
     state.routeLayers.push(casing, line, start, end);
-    const bounds = line.getBounds();
-    const paddingBottom = isMobile() ? 220 : 50;
-    state.map.fitBounds(bounds, {
-      paddingTopLeft: [24, 70],
-      paddingBottomRight: [24, paddingBottom],
-      maxZoom: 1.8,
-      animate: true,
-      duration: 0.45,
-    });
+    state.activeRouteBounds = line.getBounds();
+    fitRouteBounds(true);
   }
 
   function updateRouteSummary(route) {
@@ -482,6 +526,7 @@
   function clearRouteLayers() {
     state.routeLayers.forEach((layer) => layer.removeFrom(state.map));
     state.routeLayers = [];
+    state.activeRouteBounds = null;
   }
 
   function updateUrl(from, to) {
@@ -506,13 +551,61 @@
     return value === 0 ? '0 min' : `${Math.max(1, Math.round(value))} min`;
   }
 
+  function currentMapPadding() {
+    if (!isMobile()) {
+      return {topLeft: [12, 12], bottomRight: [12, 12]};
+    }
+
+    if (isCompactLandscape()) {
+      return {topLeft: [10, 54], bottomRight: [10, 62]};
+    }
+
+    return {topLeft: [14, 64], bottomRight: [14, 82]};
+  }
+
+  function currentRoutePadding() {
+    if (!isMobile()) {
+      return {topLeft: [28, 74], bottomRight: [28, 54]};
+    }
+
+    if (isCompactLandscape()) {
+      return {topLeft: [18, 58], bottomRight: [18, 72]};
+    }
+
+    return {topLeft: [22, 70], bottomRight: [22, 188]};
+  }
+
+  function fitRouteBounds(animate = true) {
+    if (!state.map || !state.activeRouteBounds?.isValid()) return;
+    state.map.stop();
+    state.map.invalidateSize(false);
+    const padding = currentRoutePadding();
+    state.map.fitBounds(state.activeRouteBounds, {
+      paddingTopLeft: padding.topLeft,
+      paddingBottomRight: padding.bottomRight,
+      maxZoom: 1.8,
+      animate,
+      duration: animate ? 0.35 : 0,
+    });
+    updateZoomButtons();
+  }
+
+  function refitCurrentView(animate = false) {
+    if (state.activeRouteBounds?.isValid()) {
+      fitRouteBounds(animate);
+    } else {
+      fitWholeMap(animate);
+    }
+  }
+
   function fitWholeMap(animate = true) {
     if (!state.map || !state.bounds) return;
     state.map.stop();
     state.map.invalidateSize(false);
-    const mobilePadding = isMobile() ? 18 : 10;
+    const padding = currentMapPadding();
     state.map.fitBounds(state.bounds, {
-      padding: [mobilePadding, mobilePadding],
+      paddingTopLeft: padding.topLeft,
+      paddingBottomRight: padding.bottomRight,
       animate,
       duration: animate ? 0.25 : 0,
     });
@@ -553,7 +646,7 @@
     try {
       if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
       else await document.exitFullscreen();
-      setTimeout(() => state.map.invalidateSize(), 150);
+      setTimeout(() => syncViewportMetrics({refit: true}), 180);
     } catch (_) {
       showToast('Fullscreen is not available in this browser.');
     }
@@ -566,7 +659,7 @@
     el.openPanel.setAttribute('aria-expanded', 'true');
     el.panel.setAttribute('aria-hidden', 'false');
     document.body.classList.add('panel-open');
-    setTimeout(() => el.search.focus({preventScroll: true}), 280);
+    el.panel.scrollTop = 0;
   }
 
   function collapsePanel() {

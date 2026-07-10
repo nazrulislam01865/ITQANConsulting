@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Working Guest Map Prototype | Resort Navigation</title>
+  <style>
+    :root{
+      --bg:#f3f4ef;
+      --panel:#ffffff;
+      --ink:#16251f;
+      --muted:#66736c;
+      --line:#d9dfd8;
+      --green:#1f6b4b;
+      --green2:#2d8a61;
+      --gold:#b98b42;
+      --blue:#2563eb;
+      --danger:#d94635;
+      --shadow:0 18px 45px rgba(20,35,29,.16);
+      --radius:22px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
+    body{overflow:hidden}
+    .app{height:100vh;height:100dvh;display:grid;grid-template-columns:390px 1fr;background:linear-gradient(135deg,#f5f1e8,#eef5ef)}
+    .side{position:relative;z-index:5;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-right:1px solid rgba(22,37,31,.08);padding:20px;overflow:auto;box-shadow:12px 0 35px rgba(21,32,26,.08)}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+    .brand-mark{width:48px;height:48px;border-radius:16px;background:linear-gradient(135deg,var(--green),#74b48e);display:grid;place-items:center;color:white;font-weight:900;box-shadow:0 10px 25px rgba(31,107,75,.25)}
+    .brand h1{font-size:20px;line-height:1.1;margin:0;letter-spacing:-.4px}
+    .brand p{font-size:13px;color:var(--muted);margin:4px 0 0}
+    .qr-note{border:1px solid rgba(31,107,75,.15);background:#eff8f2;border-radius:18px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#365648;line-height:1.4}
+    .search-wrap{position:sticky;top:-20px;background:linear-gradient(180deg,rgba(255,255,255,1),rgba(255,255,255,.94));padding:20px 0 12px;margin-top:-20px;z-index:7}
+    .input{width:100%;border:1px solid var(--line);border-radius:18px;padding:13px 14px 13px 42px;font-size:15px;outline:none;background:white;color:var(--ink);box-shadow:0 8px 24px rgba(22,37,31,.05)}
+    .search-icon{position:absolute;left:14px;top:32px;color:#7b8982;font-size:17px}
+    .filters{display:flex;gap:8px;overflow:auto;padding:0 0 10px;scrollbar-width:none}
+    .filters::-webkit-scrollbar{display:none}
+    .chip{border:1px solid var(--line);background:white;border-radius:999px;padding:8px 12px;font-size:13px;color:#33423b;white-space:nowrap;cursor:pointer;transition:.2s}
+    .chip.active{background:var(--green);color:white;border-color:var(--green);box-shadow:0 8px 18px rgba(31,107,75,.22)}
+    .field{margin:12px 0}
+    label{display:block;font-size:12px;color:#68756f;margin:0 0 7px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+    select{width:100%;appearance:none;border:1px solid var(--line);border-radius:16px;padding:13px 14px;background:#fff;font-size:15px;color:var(--ink);outline:none}
+    .buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 16px}
+    button{font:inherit;cursor:pointer;border:0;border-radius:16px;padding:12px 14px;background:#eef1ee;color:#1f2d27;font-weight:800;transition:.18s;min-height:45px}
+    button:hover{transform:translateY(-1px);box-shadow:0 10px 18px rgba(22,37,31,.1)}
+    .primary{background:var(--green);color:white;box-shadow:0 10px 22px rgba(31,107,75,.22)}
+    .secondary{background:#f4efe6;color:#5b4423}
+    .tiny-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .tiny-row button{padding:9px 11px;min-height:0;border-radius:999px;font-size:12px;font-weight:800;background:#fff;border:1px solid var(--line)}
+    .tiny-row button.active{background:#173a2c;color:white;border-color:#173a2c}
+    .summary{border:1px solid var(--line);border-radius:20px;background:#fff;padding:14px;margin-bottom:15px;box-shadow:0 10px 22px rgba(22,37,31,.05)}
+    .summary-title{display:flex;align-items:center;gap:9px;font-weight:900;margin-bottom:7px}
+    .summary p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+    .steps{display:flex;flex-direction:column;gap:10px;margin:0 0 20px;padding:0;list-style:none}
+    .step{display:grid;grid-template-columns:28px 1fr;gap:10px;background:#fff;border:1px solid var(--line);border-radius:17px;padding:11px;align-items:start}
+    .step b{width:28px;height:28px;background:#edf4ee;border-radius:50%;display:grid;place-items:center;color:var(--green);font-size:13px}
+    .step span{font-size:13px;line-height:1.35;color:#33423b;padding-top:4px}
+    .poi-list{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+    .poi-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:11px;display:grid;grid-template-columns:38px 1fr auto;gap:10px;align-items:center;cursor:pointer;transition:.16s}
+    .poi-card:hover{border-color:#a8c7b3;transform:translateY(-1px);box-shadow:0 10px 20px rgba(22,37,31,.07)}
+    .poi-ico{width:38px;height:38px;border-radius:14px;display:grid;place-items:center;background:#f0f4f1;font-size:18px}
+    .poi-card h3{margin:0;font-size:14px}
+    .poi-card p{margin:3px 0 0;font-size:12px;color:var(--muted)}
+    .tag{font-size:11px;color:#5b4423;background:#f7f1e7;border-radius:999px;padding:5px 8px;text-transform:capitalize}
+    .map-shell{position:relative;height:100%;overflow:hidden;background:#dbe8d9}
+    .topbar{position:absolute;z-index:10;left:24px;right:24px;top:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;pointer-events:none}
+    .pill{pointer-events:auto;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.75);border-radius:999px;padding:12px 16px;box-shadow:0 12px 30px rgba(22,37,31,.12);font-weight:900;font-size:14px;display:flex;align-items:center;gap:8px}
+    .map-controls{position:absolute;right:24px;top:88px;z-index:10;display:flex;flex-direction:column;gap:10px}
+    .map-controls button{width:48px;height:48px;border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 12px 26px rgba(22,37,31,.12);font-size:20px;padding:0}
+    .bottom-sheet{display:none}
+    .map-viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab}
+    .map-viewport.dragging{cursor:grabbing}
+    .map-world{position:absolute;left:50%;top:50%;width:1200px;height:800px;transform-origin:0 0;will-change:transform}
+    svg{display:block;width:1200px;height:800px;user-select:none}
+    .poi-marker{position:absolute;width:42px;height:42px;margin:-42px 0 0 -21px;border-radius:50% 50% 50% 12px;transform:rotate(-45deg);display:grid;place-items:center;border:3px solid white;box-shadow:0 10px 22px rgba(22,37,31,.25);cursor:pointer;z-index:8;transition:.18s;background:var(--green)}
+    .poi-marker span{transform:rotate(45deg);font-size:18px;line-height:1}
+    .poi-marker.active{width:52px;height:52px;margin:-52px 0 0 -26px;z-index:12;box-shadow:0 16px 32px rgba(31,107,75,.35),0 0 0 7px rgba(31,107,75,.16)}
+    .poi-label{position:absolute;transform:translate(-50%,6px);font-size:12px;font-weight:900;color:#1d2a25;text-shadow:0 1px 0 rgba(255,255,255,.95),0 -1px 0 rgba(255,255,255,.95),1px 0 0 rgba(255,255,255,.95),-1px 0 0 rgba(255,255,255,.95);white-space:nowrap;z-index:7;pointer-events:none}
+    .you-marker{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:var(--blue);border:4px solid white;box-shadow:0 0 0 8px rgba(37,99,235,.22),0 12px 26px rgba(37,99,235,.35);z-index:18;cursor:grab}
+    .you-marker:after{content:"You";position:absolute;left:50%;top:30px;transform:translateX(-50%);font-size:12px;font-weight:900;background:white;color:#1d2a25;padding:4px 8px;border-radius:999px;box-shadow:0 8px 18px rgba(22,37,31,.14);white-space:nowrap}
+    .tooltip{position:absolute;z-index:30;background:#17271f;color:white;border-radius:15px;padding:10px 12px;box-shadow:0 18px 40px rgba(0,0,0,.24);width:220px;pointer-events:none;transform:translate(-50%,-120%);display:none}
+    .tooltip h4{margin:0 0 4px;font-size:14px}
+    .tooltip p{margin:0;color:#dbe5df;font-size:12px;line-height:1.35}
+    .toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#17271f;color:white;padding:12px 16px;border-radius:999px;box-shadow:0 14px 35px rgba(0,0,0,.22);font-size:13px;z-index:50;opacity:0;transition:.25s;pointer-events:none}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .mobile-toggle{display:none}
+    .route-line{fill:none;stroke:#2563eb;stroke-width:9;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 5px 6px rgba(37,99,235,.25));stroke-dasharray:18 12;animation:dash 1s linear infinite}
+    .route-glow{fill:none;stroke:#fff;stroke-width:16;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+    @keyframes dash{to{stroke-dashoffset:-30}}
+    .path-line{fill:none;stroke:#fff;stroke-width:20;stroke-linecap:round;stroke-linejoin:round;opacity:.95;filter:drop-shadow(0 4px 3px rgba(32,48,40,.12))}
+    .path-line-base{fill:none;stroke:#b9c8bd;stroke-width:26;stroke-linecap:round;stroke-linejoin:round;opacity:1}
+    .road-name{font-size:13px;fill:#42564b;font-weight:800;letter-spacing:.2px}
+    .water{fill:#8fc9d0}.forest{fill:#8cbe8f}.lawn{fill:#bad9a7}.sand{fill:#dccb9a}.building{fill:#e7dfd1;stroke:#b8ac98;stroke-width:2}.roof{fill:#b47846}.zone{fill:rgba(255,255,255,.45);stroke:#ffffff;stroke-width:2;stroke-dasharray:8 6}.restricted{fill:#ead4d0;stroke:#d94635;stroke-width:2;stroke-dasharray:8 6;opacity:.75}
+    @media(max-width:900px){
+      body{overflow:hidden}
+      .app{grid-template-columns:1fr}
+      .side{position:absolute;left:0;right:0;bottom:0;top:auto;max-height:54vh;border-radius:28px 28px 0 0;border-right:0;border-top:1px solid rgba(22,37,31,.1);padding:18px;transform:translateY(calc(100% - 92px));transition:.25s;z-index:30;box-shadow:0 -20px 45px rgba(22,37,31,.18)}
+      .side.open{transform:translateY(0)}
+      .side:before{content:"";display:block;width:54px;height:5px;border-radius:999px;background:#d3d9d5;margin:0 auto 14px}
+      .brand h1{font-size:17px}.brand p{font-size:12px}.brand-mark{width:42px;height:42px;border-radius:14px}
+      .qr-note{display:none}
+      .search-wrap{top:-18px;padding-top:18px}
+      .topbar{left:12px;right:12px;top:12px}.pill{font-size:12px;padding:10px 12px}.pill.desktop-info{display:none}
+      .map-controls{right:12px;top:72px}.map-controls button{width:44px;height:44px}
+      .mobile-toggle{display:flex;position:absolute;left:12px;bottom:108px;z-index:22;background:var(--green);color:#fff;border-radius:999px;box-shadow:0 12px 25px rgba(31,107,75,.3)}
+      .bottom-sheet{display:block;position:absolute;left:12px;right:12px;bottom:18px;z-index:20;background:rgba(255,255,255,.94);border-radius:24px;padding:12px 14px;box-shadow:0 15px 40px rgba(22,37,31,.16);border:1px solid rgba(255,255,255,.9)}
+      .bottom-sheet h3{margin:0 0 4px;font-size:15px}.bottom-sheet p{margin:0;color:var(--muted);font-size:12px;line-height:1.35}
+      .buttons{grid-template-columns:1fr 1fr}
+      .map-world{width:1000px;height:667px} svg{width:1000px;height:667px}
+      .poi-label{font-size:11px}.toast{bottom:94px;max-width:90%;border-radius:18px;text-align:center}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="sidePanel">
+    <div class="brand">
+      <div class="brand-mark">GM</div>
+      <div>
+        <h1>Guest Map Prototype</h1>
+        <p>Real working sample for any resort or large venue</p>
+      </div>
+    </div>
+    <div class="qr-note">
+      This file works without Google Maps, API key, CDN, or internet. It is a functional sample of how a resort QR map can behave.
+    </div>
+
+    <div class="search-wrap">
+      <div style="position:relative">
+        <span class="search-icon">⌕</span>
+        <input id="search" class="input" placeholder="Search reception, villa, pool..." />
+      </div>
+    </div>
+
+    <div class="filters" id="filters"></div>
+
+    <div class="field">
+      <label>Starting point</label>
+      <select id="fromSelect"></select>
+    </div>
+    <div class="field">
+      <label>Destination</label>
+      <select id="toSelect"></select>
+    </div>
+
+    <div class="buttons">
+      <button class="primary" id="routeBtn">Show route</button>
+      <button class="secondary" id="swapBtn">Swap</button>
+    </div>
+
+    <div class="tiny-row">
+      <button id="setStartBtn">Set start on map</button>
+      <button id="centerBtn">Center map</button>
+      <button id="copyBtn">Copy QR link</button>
+    </div>
+
+    <div class="summary">
+      <div class="summary-title"><span>🧭</span><span id="summaryTitle">Choose a destination</span></div>
+      <p id="summaryText">Select a place and click “Show route”. You can also drag the blue marker or click “Set start on map”.</p>
+    </div>
+
+    <ol class="steps" id="steps"></ol>
+
+    <label>Places</label>
+    <div class="poi-list" id="poiList"></div>
+  </aside>
+
+  <main class="map-shell">
+    <div class="topbar">
+      <div class="pill">📍 Drag the blue marker or set start from QR</div>
+      <div class="pill desktop-info">No external dependency. Fully functional demo.</div>
+    </div>
+    <button class="mobile-toggle" id="mobileToggle">Plan Route</button>
+    <div class="map-controls">
+      <button id="zoomIn" aria-label="Zoom in">+</button>
+      <button id="zoomOut" aria-label="Zoom out">−</button>
+      <button id="resetView" aria-label="Reset view">⌂</button>
+    </div>
+    <div class="map-viewport" id="viewport">
+      <div class="map-world" id="world">
+        <svg id="svgMap" viewBox="0 0 1200 800" preserveAspectRatio="none" aria-label="Interactive resort map">
+          <defs>
+            <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#d6e5cf"/><stop offset=".55" stop-color="#bfd8b5"/><stop offset="1" stop-color="#e7d7a5"/>
+            </linearGradient>
+            <pattern id="trees" width="46" height="46" patternUnits="userSpaceOnUse">
+              <circle cx="10" cy="12" r="7" fill="#7fb17a" opacity=".55"/>
+              <circle cx="30" cy="20" r="9" fill="#6da56d" opacity=".5"/>
+              <circle cx="18" cy="34" r="6" fill="#5f9864" opacity=".45"/>
+            </pattern>
+            <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#23362d" flood-opacity=".18"/>
+            </filter>
+          </defs>
+          <rect width="1200" height="800" fill="url(#bgGrad)"/>
+          <path d="M-20,98 C160,22 300,62 426,118 C596,194 690,104 842,62 C1016,14 1116,88 1230,40 L1230,-20 L-20,-20 Z" fill="url(#trees)" opacity=".82"/>
+          <path d="M-20,655 C160,592 256,640 398,690 C548,742 706,716 832,652 C986,574 1092,642 1230,596 L1230,820 L-20,820 Z" fill="url(#trees)" opacity=".62"/>
+          <path class="water" d="M852,246 C943,215 1046,236 1090,304 C1131,367 1102,446 1018,474 C920,508 831,478 796,410 C760,340 777,276 852,246 Z" opacity=".95"/>
+          <path class="water" d="M218,206 C300,163 398,194 410,274 C423,357 324,393 246,366 C178,342 151,242 218,206 Z" opacity=".65"/>
+          <path class="sand" d="M796,432 C880,500 1004,494 1088,452 C1098,506 1070,550 1014,578 C908,632 784,586 754,496 C748,474 762,451 796,432 Z" opacity=".8"/>
+          <path class="lawn" d="M452,170 C592,122 750,152 792,264 C834,376 734,488 590,486 C444,484 348,394 364,282 C372,226 402,188 452,170 Z" opacity=".78"/>
+          <path class="zone" d="M385 165 C555 110 745 140 806 282 C858 404 742 530 574 520 C407 510 314 398 344 270 C356 218 377 184 385 165 Z"/>
+          <path class="restricted" d="M96 462 C165 410 243 430 274 496 C296 548 250 608 172 618 C103 626 48 588 50 526 C52 498 67 476 96 462 Z"/>
+          <text x="103" y="526" font-size="18" font-weight="900" fill="#7d332e">Staff Only</text>
+          <text x="492" y="248" font-size="18" font-weight="900" fill="#496051">Main Lawn</text>
+          <text x="887" y="355" font-size="18" font-weight="900" fill="#326b74">Lake & Water Zone</text>
+
+          <g id="pathsUnder"></g>
+          <g id="routeUnder"></g>
+          <g id="buildingsLayer">
+            <rect class="building" x="455" y="552" width="134" height="75" rx="11" filter="url(#softShadow)"/><rect class="roof" x="476" y="536" width="94" height="28" rx="8"/>
+            <rect class="building" x="605" y="564" width="124" height="56" rx="10" filter="url(#softShadow)"/><rect class="roof" x="628" y="548" width="76" height="25" rx="8"/>
+            <rect class="building" x="162" y="323" width="120" height="62" rx="10" filter="url(#softShadow)"/><rect class="roof" x="182" y="308" width="80" height="24" rx="7"/>
+            <rect class="building" x="392" y="332" width="90" height="58" rx="10" filter="url(#softShadow)"/><rect class="roof" x="408" y="318" width="58" height="22" rx="7"/>
+            <rect class="building" x="844" y="164" width="96" height="58" rx="10" filter="url(#softShadow)"/><rect class="roof" x="860" y="150" width="64" height="22" rx="7"/>
+            <rect class="building" x="782" y="594" width="106" height="58" rx="10" filter="url(#softShadow)"/><rect class="roof" x="800" y="580" width="70" height="22" rx="7"/>
+            <rect class="building" x="985" y="534" width="120" height="64" rx="10" filter="url(#softShadow)"/><rect class="roof" x="1005" y="518" width="78" height="25" rx="7"/>
+          </g>
+          <g id="routeLayer"></g>
+          <g id="pathsOver"></g>
+          <text class="road-name" x="442" y="671" transform="rotate(-3 442 671)">Garden Walk</text>
+          <text class="road-name" x="766" y="533" transform="rotate(22 766 533)">Lake Road</text>
+          <text class="road-name" x="238" y="431" transform="rotate(-45 238 431)">Reception Drive</text>
+        </svg>
+      </div>
+    </div>
+    <div class="tooltip" id="tooltip"><h4></h4><p></p></div>
+    <div class="toast" id="toast"></div>
+    <div class="bottom-sheet" id="miniSheet"><h3 id="miniTitle">Guest Map Ready</h3><p id="miniText">Pick a destination and see a route inside the resort.</p></div>
+  </main>
+</div>
+<script>
+(function(){
+  'use strict';
+
+  const categories = [
+    {id:'all', name:'All'},
+    {id:'arrival', name:'Arrival'},
+    {id:'stay', name:'Stay'},
+    {id:'food', name:'Food'},
+    {id:'activity', name:'Activities'},
+    {id:'service', name:'Service'},
+    {id:'emergency', name:'Emergency'}
+  ];
+
+  const pois = [
+    {id:'reception', name:'Reception & Lobby', cat:'arrival', icon:'🏨', x:522, y:585, node:'n_lobby', desc:'Check-in, guest help desk, lost and found'},
+    {id:'parking', name:'Guest Parking', cat:'arrival', icon:'🅿️', x:130, y:432, node:'n_parking', desc:'Main car parking and drop-off area'},
+    {id:'tower', name:'Tower Rooms', cat:'stay', icon:'🏢', x:666, y:590, node:'n_tower', desc:'Main tower building and room elevators'},
+    {id:'villas', name:'Garden Villas', cat:'stay', icon:'🏡', x:222, y:348, node:'n_villas', desc:'Private villa area beside the small lake'},
+    {id:'presidential', name:'Presidential Suite', cat:'stay', icon:'👑', x:437, y:357, node:'n_pres', desc:'Premium suite block with private access'},
+    {id:'restaurant', name:'Buffet Restaurant', cat:'food', icon:'🍽️', x:892, y:194, node:'n_resto', desc:'Breakfast, lunch, dinner and buffet service'},
+    {id:'cafe', name:'Lake Café', cat:'food', icon:'☕', x:834, y:623, node:'n_cafe', desc:'Coffee, snacks and lakeside seating'},
+    {id:'pool', name:'Family Pool', cat:'activity', icon:'🏊', x:952, y:354, node:'n_pool', desc:'Main family swimming pool'},
+    {id:'waterzone', name:'Water Zone', cat:'activity', icon:'💦', x:1050, y:446, node:'n_water', desc:'Slides, water play and family activity zone'},
+    {id:'kids', name:'Kids Zone', cat:'activity', icon:'🧸', x:652, y:294, node:'n_kids', desc:'Children play area and supervised activities'},
+    {id:'movie', name:'Movie Theater', cat:'activity', icon:'🎬', x:1038, y:566, node:'n_movie', desc:'Indoor cinema and evening shows'},
+    {id:'buggy', name:'Buggy Stand', cat:'service', icon:'🛺', x:604, y:505, node:'n_buggy', desc:'Buggy pickup/drop-off point'},
+    {id:'prayer', name:'Prayer Room', cat:'service', icon:'🕌', x:384, y:512, node:'n_prayer', desc:'Prayer and quiet room'},
+    {id:'clinic', name:'First Aid', cat:'emergency', icon:'➕', x:324, y:264, node:'n_clinic', desc:'Basic medical help and emergency response'}
+  ];
+
+  const nodes = {
+    n_gate:{x:60,y:440,label:'Entrance gate'},
+    n_parking:{x:130,y:432,label:'Guest parking'},
+    n_cross1:{x:236,y:436,label:'Reception drive'},
+    n_villas:{x:222,y:348,label:'Garden villas'},
+    n_clinic:{x:324,y:264,label:'First aid'},
+    n_pres:{x:437,y:357,label:'Presidential suite'},
+    n_lawn:{x:538,y:334,label:'Main lawn'},
+    n_kids:{x:652,y:294,label:'Kids zone'},
+    n_resto:{x:892,y:194,label:'Buffet restaurant'},
+    n_lake_n:{x:834,y:312,label:'North lake road'},
+    n_pool:{x:952,y:354,label:'Family pool'},
+    n_water:{x:1050,y:446,label:'Water zone'},
+    n_movie:{x:1038,y:566,label:'Movie theater'},
+    n_cafe:{x:834,y:623,label:'Lake café'},
+    n_tower:{x:666,y:590,label:'Tower rooms'},
+    n_lobby:{x:522,y:585,label:'Reception and lobby'},
+    n_buggy:{x:604,y:505,label:'Buggy stand'},
+    n_prayer:{x:384,y:512,label:'Prayer room'},
+    n_loop:{x:742,y:458,label:'Lake road junction'},
+    n_south:{x:342,y:612,label:'Garden walk'}
+  };
+
+  const edges = [
+    ['n_gate','n_parking'],['n_parking','n_cross1'],['n_cross1','n_villas'],['n_villas','n_clinic'],
+    ['n_cross1','n_south'],['n_south','n_prayer'],['n_prayer','n_lobby'],['n_lobby','n_tower'],
+    ['n_lobby','n_buggy'],['n_buggy','n_loop'],['n_loop','n_pool'],['n_pool','n_water'],['n_water','n_movie'],
+    ['n_movie','n_cafe'],['n_cafe','n_tower'],['n_tower','n_buggy'],['n_loop','n_lake_n'],['n_lake_n','n_resto'],
+    ['n_lake_n','n_kids'],['n_kids','n_lawn'],['n_lawn','n_pres'],['n_pres','n_prayer'],['n_lawn','n_buggy'],
+    ['n_pool','n_resto']
+  ];
+
+  const state = {
+    activeCat:'all',
+    selectedTo:'pool',
+    selectedFrom:'reception',
+    startPoint:{x:522,y:585,label:'Reception & Lobby'},
+    setStartMode:false,
+    scale:1,
+    panX:0,
+    panY:0,
+    draggingMap:false,
+    draggingYou:false,
+    last:{x:0,y:0}
+  };
+
+  const viewport = document.getElementById('viewport');
+  const world = document.getElementById('world');
+  const svg = document.getElementById('svgMap');
+  const pathsUnder = document.getElementById('pathsUnder');
+  const routeLayer = document.getElementById('routeLayer');
+  const routeUnder = document.getElementById('routeUnder');
+  const poiList = document.getElementById('poiList');
+  const filters = document.getElementById('filters');
+  const fromSelect = document.getElementById('fromSelect');
+  const toSelect = document.getElementById('toSelect');
+  const search = document.getElementById('search');
+  const steps = document.getElementById('steps');
+  const summaryTitle = document.getElementById('summaryTitle');
+  const summaryText = document.getElementById('summaryText');
+  const tooltip = document.getElementById('tooltip');
+  const toast = document.getElementById('toast');
+  const sidePanel = document.getElementById('sidePanel');
+  const miniTitle = document.getElementById('miniTitle');
+  const miniText = document.getElementById('miniText');
+
+  const markerLayer = document.createElement('div');
+  markerLayer.style.position = 'absolute'; markerLayer.style.inset = '0'; markerLayer.style.pointerEvents = 'none';
+  world.appendChild(markerLayer);
+
+  let youMarker;
+  const markerEls = new Map();
+
+  function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
+  function nodePoint(id){ return nodes[id]; }
+  function edgeWeight(a,b){ return dist(nodes[a],nodes[b]); }
+  function polylinePath(points){ return points.map((p,i)=> (i?'L':'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' '); }
+
+  function buildAdj(){
+    const adj = {};
+    Object.keys(nodes).forEach(k => adj[k] = []);
+    edges.forEach(([a,b])=>{ const w=edgeWeight(a,b); adj[a].push({id:b,w}); adj[b].push({id:a,w}); });
+    return adj;
+  }
+  const adj = buildAdj();
+
+  function nearestNode(point){
+    let best=null,bestD=Infinity;
+    for(const [id,n] of Object.entries(nodes)){
+      const d=dist(point,n); if(d<bestD){bestD=d;best=id;}
+    }
+    return {id:best,d:bestD};
+  }
+
+  function shortestPath(startId,endId){
+    const q = new Set(Object.keys(nodes));
+    const d = {}, prev = {};
+    Object.keys(nodes).forEach(id=>{d[id]=Infinity; prev[id]=null});
+    d[startId]=0;
+    while(q.size){
+      let u=null, best=Infinity;
+      q.forEach(id=>{ if(d[id]<best){best=d[id];u=id;} });
+      if(u===null) break;
+      q.delete(u);
+      if(u===endId) break;
+      adj[u].forEach(v=>{ if(!q.has(v.id)) return; const nd=d[u]+v.w; if(nd<d[v.id]){d[v.id]=nd; prev[v.id]=u;} });
+    }
+    const path=[]; let cur=endId;
+    while(cur){ path.unshift(cur); cur=prev[cur]; }
+    if(path[0]!==startId) return [];
+    return path;
+  }
+
+  function drawBasePaths(){
+    const drawn = edges.map(([a,b])=>`M ${nodes[a].x} ${nodes[a].y} L ${nodes[b].x} ${nodes[b].y}`).join(' ');
+    pathsUnder.innerHTML = `<path class="path-line-base" d="${drawn}"></path><path class="path-line" d="${drawn}"></path>`;
+  }
+
+  function renderFilters(){
+    filters.innerHTML = categories.map(c=>`<button class="chip ${c.id===state.activeCat?'active':''}" data-cat="${c.id}">${c.name}</button>`).join('');
+    filters.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
+      state.activeCat = btn.dataset.cat;
+      renderFilters(); renderPoiList(); renderMarkers();
+    }));
+  }
+
+  function renderSelects(){
+    const opts = pois.map(p=>`<option value="${p.id}">${p.icon} ${p.name}</option>`).join('');
+    fromSelect.innerHTML = `<option value="custom">📍 Current blue marker</option>` + opts;
+    toSelect.innerHTML = opts;
+    fromSelect.value = state.selectedFrom;
+    toSelect.value = state.selectedTo;
+    fromSelect.addEventListener('change',()=>{
+      state.selectedFrom = fromSelect.value;
+      if(state.selectedFrom !== 'custom'){
+        const p = pois.find(x=>x.id===state.selectedFrom);
+        state.startPoint = {x:p.x,y:p.y,label:p.name};
+        placeYouMarker();
+      }
+    });
+    toSelect.addEventListener('change',()=>{ state.selectedTo = toSelect.value; selectPoi(state.selectedTo,false); });
+  }
+
+  function currentFilteredPois(){
+    const q = search.value.trim().toLowerCase();
+    return pois.filter(p => (state.activeCat==='all' || p.cat===state.activeCat) && (!q || (p.name+' '+p.cat+' '+p.desc).toLowerCase().includes(q)) );
+  }
+
+  function renderPoiList(){
+    const list = currentFilteredPois();
+    poiList.innerHTML = list.map(p=>`
+      <div class="poi-card" data-id="${p.id}">
+        <div class="poi-ico">${p.icon}</div>
+        <div><h3>${p.name}</h3><p>${p.desc}</p></div>
+        <span class="tag">${p.cat}</span>
+      </div>`).join('') || `<div class="summary"><p>No place found. Try another search.</p></div>`;
+    poiList.querySelectorAll('.poi-card').forEach(card=>card.addEventListener('click',()=>{
+      selectPoi(card.dataset.id,true); sidePanel.classList.add('open');
+    }));
+  }
+
+  function renderMarkers(){
+    markerEls.forEach(el=>el.remove()); markerEls.clear();
+    currentFilteredPois().forEach(p=>{
+      const el=document.createElement('div');
+      el.className='poi-marker' + (p.id===state.selectedTo?' active':'');
+      el.style.left=p.x+'px'; el.style.top=p.y+'px'; el.style.background=colorForCat(p.cat); el.style.pointerEvents='auto';
+      el.innerHTML=`<span>${p.icon}</span>`;
+      el.addEventListener('click',(e)=>{ e.stopPropagation(); selectPoi(p.id,true); });
+      el.addEventListener('mouseenter',()=>showTip(p));
+      el.addEventListener('mouseleave',hideTip);
+      markerLayer.appendChild(el); markerEls.set(p.id,el);
+      const lab=document.createElement('div');
+      lab.className='poi-label'; lab.textContent=p.name; lab.style.left=p.x+'px'; lab.style.top=(p.y+6)+'px';
+      markerLayer.appendChild(lab); markerEls.set(p.id+'_label',lab);
+    });
+    placeYouMarker();
+  }
+
+  function colorForCat(cat){
+    return {arrival:'#2563eb',stay:'#8b5cf6',food:'#f97316',activity:'#16a34a',service:'#b98b42',emergency:'#dc2626'}[cat] || '#1f6b4b';
+  }
+
+  function selectPoi(id, route){
+    state.selectedTo = id;
+    toSelect.value = id;
+    const p = pois.find(x=>x.id===id);
+    summaryTitle.textContent = p.name;
+    summaryText.textContent = p.desc + '. Click Show route to see the recommended internal path.';
+    miniTitle.textContent = p.icon + ' ' + p.name;
+    miniText.textContent = p.desc;
+    renderMarkers();
+    if(route) showRoute();
+  }
+
+  function showTip(p){
+    tooltip.querySelector('h4').textContent = p.icon + ' ' + p.name;
+    tooltip.querySelector('p').textContent = p.desc;
+    const screen = mapToScreen({x:p.x,y:p.y});
+    tooltip.style.left = screen.x + 'px'; tooltip.style.top = screen.y + 'px'; tooltip.style.display='block';
+  }
+  function hideTip(){ tooltip.style.display='none'; }
+
+  function placeYouMarker(){
+    if(!youMarker){
+      youMarker=document.createElement('div');
+      youMarker.className='you-marker'; youMarker.style.pointerEvents='auto';
+      markerLayer.appendChild(youMarker);
+      youMarker.addEventListener('pointerdown', e=>{
+        e.preventDefault(); e.stopPropagation(); state.draggingYou=true; youMarker.setPointerCapture(e.pointerId); fromSelect.value='custom'; state.selectedFrom='custom'; toastMsg('Drag marker to set guest starting point');
+      });
+      youMarker.addEventListener('pointermove', e=>{
+        if(!state.draggingYou) return;
+        const p=screenToMap({x:e.clientX,y:e.clientY});
+        state.startPoint={x:clamp(p.x,20,1180), y:clamp(p.y,20,780), label:'Current blue marker'};
+        placeYouMarker();
+      });
+      youMarker.addEventListener('pointerup', e=>{
+        if(!state.draggingYou) return;
+        state.draggingYou=false; try{youMarker.releasePointerCapture(e.pointerId)}catch(_){ }
+        showRoute();
+      });
+    }
+    youMarker.style.left=state.startPoint.x+'px'; youMarker.style.top=state.startPoint.y+'px';
+  }
+
+  function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+
+  function showRoute(){
+    const dest = pois.find(p=>p.id===state.selectedTo);
+    if(!dest) return;
+    let start = state.startPoint;
+    if(fromSelect.value !== 'custom'){
+      const p = pois.find(x=>x.id===fromSelect.value);
+      if(p){ start={x:p.x,y:p.y,label:p.name}; state.startPoint=start; placeYouMarker(); }
+    }
+    const startNearest = nearestNode(start);
+    const pathNodeIds = shortestPath(startNearest.id, dest.node);
+    if(!pathNodeIds.length){ toastMsg('No route found.'); return; }
+    const points = [start, ...pathNodeIds.map(id=>nodes[id]), {x:dest.x,y:dest.y,label:dest.name}];
+    const d = polylinePath(points);
+    routeUnder.innerHTML = `<path class="route-glow" d="${d}"></path>`;
+    routeLayer.innerHTML = `<path class="route-line" d="${d}"></path>`;
+    const meters = Math.round(totalDistance(points)*1.45);
+    const mins = Math.max(1, Math.round(meters/75));
+    summaryTitle.textContent = `Route to ${dest.name}`;
+    summaryText.textContent = `Approx. ${meters} meters • ${mins} min walk. For real resorts, these numbers come from actual GPS/path measurements.`;
+    miniTitle.textContent = `Route: ${dest.name}`;
+    miniText.textContent = `${meters} meters • ${mins} min walk. Open the panel for steps.`;
+    renderSteps(points,pathNodeIds,dest,meters,mins);
+    renderMarkers();
+    fitRoute(points);
+    sidePanel.classList.remove('open');
+  }
+
+  function totalDistance(points){ let t=0; for(let i=1;i<points.length;i++) t+=dist(points[i-1],points[i]); return t; }
+
+  function renderSteps(points,nodeIds,dest,meters,mins){
+    const names = nodeIds.map(id=>nodes[id].label);
+    const chunks = [];
+    chunks.push(`Start from ${state.startPoint.label || 'your current point'}.`);
+    if(names.length>1){
+      chunks.push(`Move toward ${names[0]}, then continue through ${names.slice(1,Math.min(4,names.length)).join(', ')}.`);
+    } else {
+      chunks.push(`Move toward the nearest internal path.`);
+    }
+    if(names.length>4) chunks.push(`Follow the resort path through ${names.slice(4).join(', ')}.`);
+    chunks.push(`Arrive at ${dest.name}. Estimated walking time: ${mins} min.`);
+    steps.innerHTML = chunks.map((s,i)=>`<li class="step"><b>${i+1}</b><span>${s}</span></li>`).join('');
+  }
+
+  function fitRoute(points){
+    const xs=points.map(p=>p.x), ys=points.map(p=>p.y);
+    const minX=Math.min(...xs)-120, maxX=Math.max(...xs)+120, minY=Math.min(...ys)-120, maxY=Math.max(...ys)+120;
+    const vw=viewport.clientWidth, vh=viewport.clientHeight;
+    const worldW=worldWCurrent(), worldH=worldHCurrent();
+    const scaleX=vw/(maxX-minX), scaleY=vh/(maxY-minY);
+    state.scale=clamp(Math.min(scaleX,scaleY), .55, 1.45);
+    const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+    state.panX=vw/2 - cx*state.scale;
+    state.panY=vh/2 - cy*state.scale;
+    applyTransform();
+  }
+
+  function worldWCurrent(){return 1200;} function worldHCurrent(){return 800;}
+
+  function centerMap(){
+    const vw=viewport.clientWidth, vh=viewport.clientHeight;
+    state.scale = vw<900 ? .78 : 1;
+    state.panX = vw/2 - 600*state.scale;
+    state.panY = vh/2 - 400*state.scale;
+    applyTransform();
+  }
+  function applyTransform(){
+    world.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+  }
+
+  function mapToScreen(p){ return {x:state.panX+p.x*state.scale, y:state.panY+p.y*state.scale}; }
+  function screenToMap(s){ const rect=viewport.getBoundingClientRect(); return {x:(s.x-rect.left-state.panX)/state.scale, y:(s.y-rect.top-state.panY)/state.scale}; }
+
+  function setupMapGestures(){
+    viewport.addEventListener('pointerdown',e=>{
+      if(e.target!==viewport && e.target!==world && e.target!==svg) return;
+      if(state.setStartMode){
+        const p=screenToMap({x:e.clientX,y:e.clientY});
+        state.startPoint={x:clamp(p.x,20,1180),y:clamp(p.y,20,780),label:'Selected map point'};
+        state.selectedFrom='custom'; fromSelect.value='custom'; state.setStartMode=false; document.getElementById('setStartBtn').classList.remove('active'); placeYouMarker(); showRoute(); return;
+      }
+      state.draggingMap=true; state.last={x:e.clientX,y:e.clientY}; viewport.classList.add('dragging'); viewport.setPointerCapture(e.pointerId);
+    });
+    viewport.addEventListener('pointermove',e=>{
+      if(!state.draggingMap) return;
+      const dx=e.clientX-state.last.x, dy=e.clientY-state.last.y;
+      state.panX += dx; state.panY += dy; state.last={x:e.clientX,y:e.clientY}; applyTransform();
+    });
+    viewport.addEventListener('pointerup',e=>{ state.draggingMap=false; viewport.classList.remove('dragging'); try{viewport.releasePointerCapture(e.pointerId)}catch(_){ } });
+    viewport.addEventListener('wheel',e=>{
+      e.preventDefault();
+      const before=screenToMap({x:e.clientX,y:e.clientY});
+      const factor=e.deltaY<0?1.12:.88;
+      state.scale=clamp(state.scale*factor,.45,2.2);
+      const rect=viewport.getBoundingClientRect();
+      state.panX=e.clientX-rect.left-before.x*state.scale;
+      state.panY=e.clientY-rect.top-before.y*state.scale;
+      applyTransform();
+    },{passive:false});
+  }
+
+  function toastMsg(msg){
+    toast.textContent=msg; toast.classList.add('show');
+    clearTimeout(toast._t); toast._t=setTimeout(()=>toast.classList.remove('show'),2300);
+  }
+
+  function copyQRLink(){
+    const url = new URL(location.href);
+    url.searchParams.set('here', fromSelect.value === 'custom' ? Math.round(state.startPoint.x)+','+Math.round(state.startPoint.y) : fromSelect.value);
+    url.searchParams.set('to', state.selectedTo);
+    const text = url.toString();
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=>toastMsg('QR-style link copied')).catch(()=>fallbackCopy(text));
+    } else fallbackCopy(text);
+  }
+  function fallbackCopy(text){
+    const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toastMsg('QR-style link copied');
+  }
+
+  function loadFromURL(){
+    const params = new URLSearchParams(location.search);
+    const here=params.get('here'), to=params.get('to');
+    if(to && pois.some(p=>p.id===to)){ state.selectedTo=to; }
+    if(here){
+      if(pois.some(p=>p.id===here)){
+        const p=pois.find(x=>x.id===here); state.selectedFrom=here; state.startPoint={x:p.x,y:p.y,label:p.name};
+      } else if(/^\d+,\d+$/.test(here)){
+        const [x,y]=here.split(',').map(Number); state.selectedFrom='custom'; state.startPoint={x,y,label:'QR location'};
+      }
+    }
+  }
+
+  function wireControls(){
+    search.addEventListener('input',()=>{ renderPoiList(); renderMarkers(); });
+    document.getElementById('routeBtn').addEventListener('click',showRoute);
+    document.getElementById('swapBtn').addEventListener('click',()=>{
+      const dest = pois.find(p=>p.id===state.selectedTo);
+      const startPoi = pois.find(p=>p.id===fromSelect.value);
+      if(startPoi){
+        state.selectedTo = startPoi.id;
+        state.selectedFrom = dest.id;
+        state.startPoint = {x:dest.x,y:dest.y,label:dest.name};
+        fromSelect.value = state.selectedFrom; toSelect.value = state.selectedTo;
+        placeYouMarker(); showRoute();
+      } else { toastMsg('Swap works when start is a named place.'); }
+    });
+    document.getElementById('setStartBtn').addEventListener('click',e=>{
+      state.setStartMode=!state.setStartMode;
+      e.currentTarget.classList.toggle('active',state.setStartMode);
+      toastMsg(state.setStartMode?'Click anywhere on the map to set start':'Start setting cancelled');
+    });
+    document.getElementById('centerBtn').addEventListener('click',centerMap);
+    document.getElementById('copyBtn').addEventListener('click',copyQRLink);
+    document.getElementById('zoomIn').addEventListener('click',()=>{state.scale=clamp(state.scale*1.18,.45,2.2);applyTransform();});
+    document.getElementById('zoomOut').addEventListener('click',()=>{state.scale=clamp(state.scale*.85,.45,2.2);applyTransform();});
+    document.getElementById('resetView').addEventListener('click',centerMap);
+    document.getElementById('mobileToggle').addEventListener('click',()=>sidePanel.classList.add('open'));
+    document.getElementById('miniSheet').addEventListener('click',()=>sidePanel.classList.add('open'));
+  }
+
+  function init(){
+    loadFromURL();
+    drawBasePaths();
+    renderFilters(); renderSelects(); renderPoiList(); renderMarkers(); wireControls(); setupMapGestures(); centerMap();
+    selectPoi(state.selectedTo,false);
+    setTimeout(()=>showRoute(),250);
+    window.addEventListener('resize',()=>{centerMap();});
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

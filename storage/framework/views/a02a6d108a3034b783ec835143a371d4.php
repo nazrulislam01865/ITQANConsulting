@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#173f2d">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>The Palace Resort Map</title>
     <link rel="stylesheet" href="<?php echo e(request()->getBaseUrl()); ?>/vendor/itqan-guest-map-leaflet/leaflet.css?v=1.9.4">
-    <link rel="stylesheet" href="<?php echo e(request()->getBaseUrl()); ?>/assets/itqan-external-guest-map/guest-map.css?v=20260710-mobile-ui-fix">
+    <link rel="stylesheet" href="<?php echo e(request()->getBaseUrl()); ?>/assets/itqan-external-guest-map/guest-map.css?v=20260710-template-mobile-crop-fix">
 </head>
 <body data-base-url="<?php echo e(request()->getBaseUrl()); ?>" data-map-data-url="<?php echo e(route('external-guest-map.api.data', [], false)); ?>" data-map-route-url="<?php echo e(route('external-guest-map.api.route', [], false)); ?>" data-default-from="<?php echo e($from); ?>" data-default-to="<?php echo e($to); ?>">
 <div class="map-app" id="mapApp">
@@ -116,8 +116,8 @@
     </main>
 </div>
 <script src="<?php echo e(request()->getBaseUrl()); ?>/vendor/itqan-guest-map-leaflet/leaflet.js?v=1.9.4"></script>
-<script src="<?php echo e(request()->getBaseUrl()); ?>/assets/itqan-external-guest-map/path-geometry.js?v=20260710-mobile-ui-fix"></script>
-<script src="<?php echo e(request()->getBaseUrl()); ?>/assets/itqan-external-guest-map/guest-map.js?v=20260710-mobile-ui-fix"></script>
+<script src="<?php echo e(request()->getBaseUrl()); ?>/assets/itqan-external-guest-map/path-geometry.js?v=20260710-template-mobile-crop-fix"></script>
+<script src="<?php echo e(request()->getBaseUrl()); ?>/assets/itqan-external-guest-map/guest-map.js?v=20260710-template-mobile-crop-fix"></script>
 </body>
 </html>
 <?php /**PATH /Applications/XAMPP/xamppfiles/htdocs/laravel/ITQANConsulting/resources/views/external/itqan-guest-map/index.blade.php ENDPATH**/ ?>
