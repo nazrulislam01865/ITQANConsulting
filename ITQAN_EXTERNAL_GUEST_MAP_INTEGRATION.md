@@ -1,35 +1,39 @@
-# Itqan External Guest Map Integration
+# ITQAN Palace Guest Map Integration
 
-This map has been added as an isolated admin test route. It does not add any sidebar/menu/header link.
+The Palace navigation update is merged into the ITQAN Laravel project as an isolated public module. It does not replace or modify the normal ITQAN website pages, menus, content-management tables, or admin authentication.
 
-## Test URL
-
-After admin login, open:
+## Public map URL
 
 ```text
-/admin/external-guest-map
+/external-guest-map
 ```
 
-## Added route group
+The map uses first-party, deployment-relative API and asset URLs, so it can run on a cloud domain or under a subdirectory without relying on the standalone project's `/api/guest-map/*` paths.
 
-All routes are under:
+## Included navigation update
+
+- Changeable starting point using the origin selector, place popup, or “Choose start on map” mode
+- Real-time DeviceMotion step detection
+- DeviceOrientation heading and phone-direction alignment
+- Junction-aware graph walking and branch selection
+- Route recalculation after selecting a different road at a junction
+- Remaining-route rendering, turn maneuvers, and spoken guidance
+- GPS fallback when DeviceMotion is unavailable
+- Chrome mobile safe-area/touch behavior
+- First-party `Permissions-Policy` response header
+- Deployment-relative endpoints and static assets
+
+## Routes
 
 ```text
-/admin/external-guest-map
-```
-
-API routes are also under the same prefix:
-
-```text
-/admin/external-guest-map/api/data
-/admin/external-guest-map/api/route
-/admin/external-guest-map/api/location
-/admin/external-guest-map/api/route-log/{routeLog}/finish
+GET  /external-guest-map
+GET  /external-guest-map/api/data
+GET  /external-guest-map/api/route
+POST /external-guest-map/api/location
+POST /external-guest-map/api/navigation/finish
 ```
 
 ## Separate database tables
-
-The map uses only these external test tables:
 
 ```text
 ext_guest_map_settings
@@ -42,28 +46,18 @@ ext_guest_map_route_logs
 ext_guest_map_location_logs
 ```
 
-It does not use or modify the existing Itqan content/admin tables.
+## Cloud setup
 
-## Added files/directories
-
-```text
-app/Http/Controllers/External/ItqanGuestMapController.php
-app/Models/ExternalGuestMap/
-database/migrations/2026_07_09_170000_create_ext_guest_map_tables.php
-database/seeders/ItqanExternalGuestMapSeeder.php
-resources/views/external/itqan-guest-map/index.blade.php
-public/assets/itqan-external-guest-map/
-public/vendor/itqan-guest-map-leaflet/
-```
-
-## Setup commands
+Run these commands from the project root after configuring `.env`:
 
 ```bash
-php artisan migrate
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force
 php artisan db:seed --class=ItqanExternalGuestMapSeeder --force
 php artisan optimize:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
 ```
 
-## Removal
-
-Remove the route group from `routes/web.php`, delete the added files/directories above, then rollback/drop the `ext_guest_map_*` tables.
+The web server document root must point to `public/`. Phone motion/orientation APIs require the final browser URL to use HTTPS.

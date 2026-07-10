@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test:map": "node tests/js/motion-engine.test.cjs && node tests/js/route-follow-engine.test.cjs && node tests/js/graph-walker-engine.test.cjs"
     },
     "devDependencies": {
         "concurrently": "^9.0.1",

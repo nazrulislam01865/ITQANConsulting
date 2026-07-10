@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\External;
 
+use App\Http\Controllers\Controller;
 use App\Models\ExternalGuestMap\Edge;
 use App\Models\ExternalGuestMap\LocationLog;
 use App\Models\ExternalGuestMap\Place;
 use App\Models\ExternalGuestMap\RouteLog;
 use App\Models\ExternalGuestMap\Setting;
-use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -25,6 +25,34 @@ class ItqanGuestMapController extends Controller
     public function data(): JsonResponse
     {
         $map = $this->activeMap();
+        $placeCalibration = $map->places()
+            ->whereNotNull('lat')
+            ->whereNotNull('lng')
+            ->get(['slug', 'name', 'x', 'y', 'lat', 'lng'])
+            ->map(fn ($place) => [
+                'id' => 'place:'.$place->slug,
+                'name' => $place->name,
+                'x' => (float) $place->x,
+                'y' => (float) $place->y,
+                'lat' => (float) $place->lat,
+                'lng' => (float) $place->lng,
+            ]);
+        $nodeCalibration = $map->nodes()
+            ->whereNotNull('lat')
+            ->whereNotNull('lng')
+            ->get(['code', 'name', 'x', 'y', 'lat', 'lng'])
+            ->map(fn ($node) => [
+                'id' => 'node:'.$node->code,
+                'name' => $node->name,
+                'x' => (float) $node->x,
+                'y' => (float) $node->y,
+                'lat' => (float) $node->lat,
+                'lng' => (float) $node->lng,
+            ]);
+        $calibrationPoints = $placeCalibration->concat($nodeCalibration)->values();
+        $trackingMode = $calibrationPoints->count() >= 2
+            ? 'absolute_georeferenced'
+            : 'anchored_relative';
 
         return response()->json([
             'map' => [
@@ -35,9 +63,12 @@ class ItqanGuestMapController extends Controller
                 'width' => $map->width,
                 'height' => $map->height,
                 'meters_per_pixel' => $map->meters_per_pixel,
+                'map_north_rotation_deg' => $map->map_north_rotation_deg,
                 'walk_meters_per_minute' => $map->walk_meters_per_minute,
                 'buggy_meters_per_minute' => $map->buggy_meters_per_minute,
-                'tracking_mode' => 'leaflet_crs_simple_external_test',
+                'tracking_mode' => $trackingMode,
+                'georeferenced' => $calibrationPoints->count() >= 2,
+                'calibration_points' => $calibrationPoints,
             ],
             'categories' => $map->places()
                 ->with('category')
@@ -83,6 +114,8 @@ class ItqanGuestMapController extends Controller
                     'name' => $node->name,
                     'x' => $node->x,
                     'y' => $node->y,
+                    'lat' => $node->lat,
+                    'lng' => $node->lng,
                     'node_type' => $node->node_type,
                 ]]),
             'edges' => $map->edges()
@@ -143,7 +176,8 @@ class ItqanGuestMapController extends Controller
         $distance = round($result['distance_meters']);
         $walkMinutes = max(1, (int) ceil($distance / max(1, $map->walk_meters_per_minute)));
         $buggyMinutes = max(1, (int) ceil($distance / max(1, $map->buggy_meters_per_minute)));
-        $steps = $this->steps($fromPlace->name, $toPlace->name, $result['node_labels'], $walkMinutes);
+        $maneuvers = $this->maneuvers($path, $fromPlace->name, $toPlace->name, $map);
+        $steps = $this->steps($maneuvers, $walkMinutes);
 
         $routeLog = RouteLog::create([
             'session_uuid' => (string) Str::uuid(),
@@ -187,10 +221,14 @@ class ItqanGuestMapController extends Controller
             'walk_minutes' => $walkMinutes,
             'buggy_minutes' => $buggyMinutes,
             'path' => $path,
-            'distance_source' => 'external_guest_map_saved_edge_distance_or_map_scale',
+            'distance_source' => 'saved_edge_distance_or_map_scale',
             'node_path' => $result['node_codes'],
             'steps' => $steps,
-            'tracking_mode' => 'leaflet_crs_simple_external_test',
+            'maneuvers' => $maneuvers,
+            'tracking_mode' => ($map->places()->whereNotNull('lat')->whereNotNull('lng')->count()
+                + $map->nodes()->whereNotNull('lat')->whereNotNull('lng')->count()) >= 2
+                    ? 'absolute_georeferenced'
+                    : 'anchored_relative',
         ]);
     }
 
@@ -259,20 +297,25 @@ class ItqanGuestMapController extends Controller
         ]);
     }
 
-    public function finishNavigation(Request $request, int $routeLog): JsonResponse
+    public function finishNavigation(Request $request, ?int $routeLog = null): JsonResponse
     {
+        if ($routeLog !== null && ! $request->filled('route_log_id')) {
+            $request->merge(['route_log_id' => $routeLog]);
+        }
+
         $data = $request->validate([
+            'route_log_id' => ['required', 'integer', 'exists:ext_guest_map_route_logs,id'],
             'status' => ['nullable', 'in:stopped,arrived,cancelled'],
         ]);
 
-        $routeLogModel = RouteLog::findOrFail($routeLog);
-        $routeLogModel->update([
+        $routeLog = RouteLog::findOrFail($data['route_log_id']);
+        $routeLog->update([
             'status' => $data['status'] ?? 'stopped',
             'ended_at' => now(),
             'last_tracked_at' => now(),
         ]);
 
-        return response()->json(['ok' => true, 'status' => $routeLogModel->fresh()->status]);
+        return response()->json(['ok' => true, 'status' => $routeLog->fresh()->status]);
     }
 
     private function activeMap(): Setting
@@ -432,19 +475,152 @@ class ItqanGuestMapController extends Controller
         return sqrt($dx * $dx + $dy * $dy);
     }
 
-    private function steps(string $from, string $to, array $nodeLabels, int $walkMinutes): array
+    private function maneuvers(array $path, string $from, string $to, Setting $map): array
     {
-        $useful = array_values(array_unique(array_filter($nodeLabels)));
-        $steps = ["Start from {$from}."];
-
-        if (count($useful) > 0) {
-            $steps[] = 'Follow the visible resort path through '.implode(', ', array_slice($useful, 0, 4)).'.';
+        $points = [];
+        foreach ($path as $point) {
+            $candidate = ['x' => (float) ($point['x'] ?? 0), 'y' => (float) ($point['y'] ?? 0)];
+            $last = end($points);
+            if (! $last || $this->pointDistance($last, $candidate) > 0.01) {
+                $points[] = $candidate;
+            }
         }
-        if (count($useful) > 4) {
-            $steps[] = 'Continue through '.implode(', ', array_slice($useful, 4)).'.';
+
+        if (count($points) < 2) {
+            return [[
+                'type' => 'arrive',
+                'instruction' => "Arrive at {$to}.",
+                'distance_from_start_meters' => 0,
+                'distance_to_next_meters' => 0,
+                'point' => $points[0] ?? ['x' => 0, 'y' => 0],
+                'bearing_after' => null,
+            ]];
         }
 
-        $steps[] = "Arrive at {$to}. Estimated walking time: {$walkMinutes} minute(s).";
+        $metersPerPixel = max(0.0001, (float) $map->meters_per_pixel);
+        $cumulative = [0.0];
+        for ($i = 1; $i < count($points); $i++) {
+            $cumulative[$i] = $cumulative[$i - 1] + $this->pointDistance($points[$i - 1], $points[$i]) * $metersPerPixel;
+        }
+
+        $initialBearing = $this->mapBearing($points[0], $points[1]);
+        $maneuvers = [[
+            'type' => 'depart',
+            'instruction' => 'Head '.$this->bearingLabel($initialBearing).' from '.$from.'.',
+            'distance_from_start_meters' => 0,
+            'point' => $points[0],
+            'bearing_after' => round($initialBearing, 1),
+            'turn_degrees' => 0,
+        ]];
+
+        $lookAheadMeters = 7.0;
+        $minimumTurnDegrees = 28.0;
+        $minimumSpacingMeters = 10.0;
+
+        for ($i = 1; $i < count($points) - 1; $i++) {
+            $before = $i - 1;
+            while ($before > 0 && ($cumulative[$i] - $cumulative[$before]) < $lookAheadMeters) {
+                $before--;
+            }
+            $after = $i + 1;
+            while ($after < count($points) - 1 && ($cumulative[$after] - $cumulative[$i]) < $lookAheadMeters) {
+                $after++;
+            }
+
+            $incoming = $this->mapBearing($points[$before], $points[$i]);
+            $outgoing = $this->mapBearing($points[$i], $points[$after]);
+            $turn = $this->signedAngle($outgoing - $incoming);
+            $absoluteTurn = abs($turn);
+            if ($absoluteTurn < $minimumTurnDegrees) {
+                continue;
+            }
+
+            $type = match (true) {
+                $absoluteTurn >= 150 => 'uturn',
+                $turn >= 70 => 'turn-right',
+                $turn >= $minimumTurnDegrees => 'slight-right',
+                $turn <= -70 => 'turn-left',
+                default => 'slight-left',
+            };
+            $instruction = match ($type) {
+                'uturn' => 'Make a U-turn.',
+                'turn-right' => 'Turn right.',
+                'slight-right' => 'Keep slightly right.',
+                'turn-left' => 'Turn left.',
+                default => 'Keep slightly left.',
+            };
+
+            $candidate = [
+                'type' => $type,
+                'instruction' => $instruction,
+                'distance_from_start_meters' => round($cumulative[$i], 1),
+                'point' => $points[$i],
+                'bearing_after' => round($outgoing, 1),
+                'turn_degrees' => round($turn, 1),
+            ];
+
+            $lastIndex = count($maneuvers) - 1;
+            $lastDistance = (float) ($maneuvers[$lastIndex]['distance_from_start_meters'] ?? 0);
+            if ($lastIndex > 0 && $candidate['distance_from_start_meters'] - $lastDistance < $minimumSpacingMeters) {
+                if (abs($candidate['turn_degrees']) > abs((float) ($maneuvers[$lastIndex]['turn_degrees'] ?? 0))) {
+                    $maneuvers[$lastIndex] = $candidate;
+                }
+                continue;
+            }
+
+            $maneuvers[] = $candidate;
+        }
+
+        $totalDistance = end($cumulative) ?: 0;
+        $maneuvers[] = [
+            'type' => 'arrive',
+            'instruction' => "Arrive at {$to}.",
+            'distance_from_start_meters' => round($totalDistance, 1),
+            'point' => end($points),
+            'bearing_after' => null,
+            'turn_degrees' => 0,
+        ];
+
+        for ($i = 0; $i < count($maneuvers); $i++) {
+            $nextDistance = $maneuvers[$i + 1]['distance_from_start_meters'] ?? $maneuvers[$i]['distance_from_start_meters'];
+            $maneuvers[$i]['distance_to_next_meters'] = round(max(0, $nextDistance - $maneuvers[$i]['distance_from_start_meters']), 1);
+        }
+
+        return $maneuvers;
+    }
+
+    private function mapBearing(array $a, array $b): float
+    {
+        $dx = (float) $b['x'] - (float) $a['x'];
+        $dy = (float) $b['y'] - (float) $a['y'];
+        $bearing = rad2deg(atan2($dx, -$dy));
+
+        return fmod($bearing + 360.0, 360.0);
+    }
+
+    private function signedAngle(float $angle): float
+    {
+        return fmod($angle + 540.0, 360.0) - 180.0;
+    }
+
+    private function bearingLabel(float $bearing): string
+    {
+        $labels = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
+        $index = ((int) round(fmod($bearing + 360.0, 360.0) / 45.0)) % 8;
+
+        return $labels[$index];
+    }
+
+    private function steps(array $maneuvers, int $walkMinutes): array
+    {
+        $steps = array_values(array_map(
+            fn (array $maneuver) => $maneuver['instruction'],
+            $maneuvers,
+        ));
+
+        if (! empty($steps)) {
+            $steps[count($steps) - 1] .= " Estimated walking time: {$walkMinutes} minute(s).";
+        }
 
         return $steps;
     }

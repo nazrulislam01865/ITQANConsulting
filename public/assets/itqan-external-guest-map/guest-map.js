@@ -1,6 +1,15 @@
 (function () {
   'use strict';
 
+  // The resort map uses a selectable mapped place as the navigation origin.
+  // Kids Zone remains only the initial default and can be changed by the guest.
+  const NAV_CONFIG = Object.freeze({
+    defaultStartPlaceId: 'kids',
+    headingHistoryMs: 650,
+    headingHistoryMax: 12,
+    routeBiasDegrees: 9,
+  });
+
   const state = {
     data: null,
     places: [],
@@ -29,10 +38,26 @@
       heading: null,
       headingSource: null,
       headingListenerActive: false,
+      motionEngine: null,
+      graphWalker: null,
+      headingHistory: [],
+      lastBranchMessage: null,
+      motionListenerActive: false,
+      orientationListenerActive: false,
+      motionPermission: 'unknown',
+      orientationPermission: 'unknown',
+      stepCount: 0,
+      lastMotionStepAt: 0,
+      lastSensorAt: 0,
+      motionDataReceived: false,
+      orientationDataReceived: false,
+      sensorWatchdogTimer: null,
+      wakeLock: null,
       lastAccuracy: null,
       lastSentAt: 0,
       totalMovedMeters: 0,
       remainingDistanceMeters: 0,
+      remainingPath: [],
       progressPercent: 0,
       sensorStatus: 'Checking',
       currentRoad: null,
@@ -43,7 +68,20 @@
       mapNorthRotationDeg: 0,
       keyboardStepMeters: 2.2,
       minGpsMoveMeters: 0.8,
+      geoCalibration: null,
+      smoothedRawPoint: null,
+      followMode: true,
+      voiceEnabled: true,
+      lastSpokenKey: null,
+      currentManeuvers: [],
+      currentManeuverIndex: 0,
+      routeSignature: null,
+      lastRouteRefreshAt: 0,
+      offRouteSamples: 0,
+      rerouteCount: 0,
     },
+    lifecycleWired: false,
+    pickingStart: false,
   };
 
   const el = {
@@ -71,10 +109,30 @@
     bottomTitle: document.getElementById('bottomTitle'),
     bottomText: document.getElementById('bottomText'),
     toast: document.getElementById('toast'),
+    navGuidance: document.getElementById('navGuidance'),
+    maneuverIcon: document.getElementById('maneuverIcon'),
+    maneuverDistance: document.getElementById('maneuverDistance'),
+    maneuverText: document.getElementById('maneuverText'),
+    maneuverSubtext: document.getElementById('maneuverSubtext'),
+    voiceBtn: document.getElementById('voiceBtn'),
+    followBtn: document.getElementById('followBtn'),
+    trackingModeBadge: document.getElementById('trackingModeBadge'),
+    rerouteBadge: document.getElementById('rerouteBadge'),
+    pickStartBtn: document.getElementById('pickStartBtn'),
+    panelCloseBtn: document.getElementById('panelCloseBtn'),
   };
 
   function apiUrl(path) {
-    return document.body.dataset.baseUrl + path;
+    const base = String(document.body.dataset.baseUrl || '').replace(/\/$/, '');
+    return base + path;
+  }
+
+  function configuredUrl(datasetKey, fallbackPath) {
+    return document.body.dataset[datasetKey] || apiUrl(fallbackPath);
+  }
+
+  function appendQuery(url, query) {
+    return `${url}${url.includes('?') ? '&' : '?'}${query}`;
   }
 
   function csrfToken() {
@@ -82,7 +140,9 @@
   }
 
   function mapFileUrl(path) {
-    return document.body.dataset.baseUrl + '/' + String(path || '').replace(/^\/+/, '');
+    const value = String(path || '');
+    if (/^(https?:|data:|blob:)/i.test(value)) return value;
+    return document.body.dataset.baseUrl + '/' + value.replace(/^\/+/, '');
   }
 
   async function init() {
@@ -90,6 +150,8 @@
       await loadData();
       setupLeafletMap();
       buildGraph();
+      buildGeoCalibration();
+      setupMotionEngine();
       drawRoadNetwork();
       renderFilters();
       renderSelects();
@@ -97,6 +159,7 @@
       renderPlaces();
       renderPlaceMarkers();
       wireControls();
+      wireMobileLifecycle();
       updateSensorStatus();
 
       if (state.selectedFrom) setStartFromPlace(state.selectedFrom);
@@ -109,10 +172,11 @@
   }
 
   async function loadData() {
-    const response = await fetch(apiUrl('/external-guest-map/api/data'), {headers: {'Accept': 'application/json'}});
+    const response = await fetch(configuredUrl('mapDataUrl', '/api/guest-map/data'), {headers: {'Accept': 'application/json'}});
     if (!response.ok) throw new Error('Could not load map data.');
     state.data = await response.json();
     state.places = state.data.places || [];
+    state.navigation.mapNorthRotationDeg = Number(state.data?.map?.map_north_rotation_deg || 0);
   }
 
   function setupLeafletMap() {
@@ -134,7 +198,8 @@
     const northEast = state.map.unproject([w, 0], 0);
     state.bounds = L.latLngBounds(southWest, northEast);
 
-    L.imageOverlay(mapFileUrl('assets/itqan-external-guest-map/template-map.svg'), state.bounds, {interactive: false}).addTo(state.map);
+    const mapImage = state.data.map.image || document.body.dataset.mapFallbackUrl || mapFileUrl('assets/itqan-external-guest-map/template-map.svg');
+    L.imageOverlay(mapImage, state.bounds, {interactive: false}).addTo(state.map);
     state.map.fitBounds(state.bounds);
     state.map.setMaxBounds(state.bounds.pad(0.35));
 
@@ -186,6 +251,116 @@
     });
 
     state.graph = {nodes, edges, adj};
+  }
+
+  function buildGeoCalibration() {
+    const points = (state.data?.map?.calibration_points || []).filter(point =>
+      Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng)) &&
+      Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))
+    ).map(point => ({...point, lat: Number(point.lat), lng: Number(point.lng), x: Number(point.x), y: Number(point.y)}));
+
+    state.navigation.geoCalibration = null;
+    if (points.length < 2) {
+      if (el.trackingModeBadge) el.trackingModeBadge.textContent = 'QR/start-point GPS mode';
+      return;
+    }
+
+    let pair = null;
+    let longest = 0;
+    for (let i = 0; i < points.length; i++) {
+      for (let j = i + 1; j < points.length; j++) {
+        const distance = haversineMeters(points[i], points[j]);
+        if (distance > longest) {
+          longest = distance;
+          pair = [points[i], points[j]];
+        }
+      }
+    }
+    if (!pair || longest < 3) {
+      if (el.trackingModeBadge) el.trackingModeBadge.textContent = 'Calibration points too close';
+      return;
+    }
+
+    const origin = pair[0];
+    const samples = points.map(point => {
+      const offset = geoOffsetMeters(origin, point);
+      return {sourceX: offset.east, sourceY: -offset.north, mapX: point.x, mapY: point.y};
+    });
+    const mean = samples.reduce((acc, sample) => ({
+      sourceX: acc.sourceX + sample.sourceX / samples.length,
+      sourceY: acc.sourceY + sample.sourceY / samples.length,
+      mapX: acc.mapX + sample.mapX / samples.length,
+      mapY: acc.mapY + sample.mapY / samples.length,
+    }), {sourceX: 0, sourceY: 0, mapX: 0, mapY: 0});
+    let denominator = 0;
+    let numeratorA = 0;
+    let numeratorB = 0;
+    samples.forEach(sample => {
+      const gx = sample.sourceX - mean.sourceX;
+      const gy = sample.sourceY - mean.sourceY;
+      const mx = sample.mapX - mean.mapX;
+      const my = sample.mapY - mean.mapY;
+      denominator += gx * gx + gy * gy;
+      numeratorA += mx * gx + my * gy;
+      numeratorB += my * gx - mx * gy;
+    });
+    if (denominator < 0.01) return;
+    const a = numeratorA / denominator;
+    const b = numeratorB / denominator;
+    const translateX = mean.mapX - a * mean.sourceX + b * mean.sourceY;
+    const translateY = mean.mapY - b * mean.sourceX - a * mean.sourceY;
+    const scalePxPerMeter = Math.hypot(a, b);
+    if (!Number.isFinite(scalePxPerMeter) || scalePxPerMeter <= 0) return;
+
+    let squaredError = 0;
+    samples.forEach(sample => {
+      const predictedX = a * sample.sourceX - b * sample.sourceY + translateX;
+      const predictedY = b * sample.sourceX + a * sample.sourceY + translateY;
+      squaredError += (predictedX - sample.mapX) ** 2 + (predictedY - sample.mapY) ** 2;
+    });
+    const rmsErrorMeters = Math.sqrt(squaredError / samples.length) / scalePxPerMeter;
+
+    state.navigation.geoCalibration = {
+      origin,
+      a,
+      b,
+      translateX,
+      translateY,
+      scalePxPerMeter,
+      rotationRad: Math.atan2(b, a),
+      baselineMeters: longest,
+      controlPointCount: points.length,
+      rmsErrorMeters,
+    };
+    if (el.trackingModeBadge) el.trackingModeBadge.textContent = `Live GPS calibrated (${points.length} points)`;
+  }
+
+  function absoluteGeoToMapPoint(geo) {
+    const calibration = state.navigation.geoCalibration;
+    if (!calibration) return null;
+    const offset = geoOffsetMeters(calibration.origin, geo);
+    const sourceX = offset.east;
+    const sourceY = -offset.north;
+    return {
+      x: clamp(calibration.a * sourceX - calibration.b * sourceY + calibration.translateX, 0, Number(state.data.map.width)),
+      y: clamp(calibration.b * sourceX + calibration.a * sourceY + calibration.translateY, 0, Number(state.data.map.height)),
+    };
+  }
+
+  function smoothMapPoint(point, accuracyMeters) {
+    if (!state.navigation.smoothedRawPoint) {
+      state.navigation.smoothedRawPoint = {...point};
+      return {...point};
+    }
+    const accuracy = Number.isFinite(Number(accuracyMeters)) ? Number(accuracyMeters) : 20;
+    const alpha = clamp(0.72 - accuracy / 120, 0.2, 0.68);
+    const previous = state.navigation.smoothedRawPoint;
+    const smoothed = {
+      x: previous.x + (point.x - previous.x) * alpha,
+      y: previous.y + (point.y - previous.y) * alpha,
+    };
+    state.navigation.smoothedRawPoint = smoothed;
+    return smoothed;
   }
 
   function drawRoadNetwork() {
@@ -241,18 +416,21 @@
 
   function loadUrlState() {
     const url = new URLSearchParams(window.location.search);
-    const defaultFrom = findPlace('villas') ? 'villas' : (findPlace('reception') ? 'reception' : state.places[0]?.id);
-    const defaultTo = findPlace('pool') ? 'pool' : (state.places.find(p => p.id !== defaultFrom)?.id || state.places[0]?.id);
-    const from = url.get('from') || url.get('here') || document.body.dataset.defaultFrom || defaultFrom;
-    const to = url.get('to') || document.body.dataset.defaultTo || defaultTo;
+    const requestedFrom = url.get('from') || document.body.dataset.defaultFrom;
+    const defaultFrom = findPlace(requestedFrom)?.id
+      || findPlace(NAV_CONFIG.defaultStartPlaceId)?.id
+      || state.places[0]?.id
+      || null;
+    const defaultTo = findPlace('pool')?.id
+      || state.places.find(place => place.id !== defaultFrom)?.id
+      || null;
+    const requestedTo = url.get('to') || document.body.dataset.defaultTo || defaultTo;
 
-    if (from && findPlace(from)) {
-      state.selectedFrom = from;
-      el.fromSelect.value = from;
-    }
-    if (to && findPlace(to)) {
-      state.selectedTo = to;
-      el.toSelect.value = to;
+    state.selectedFrom = defaultFrom;
+    el.fromSelect.value = defaultFrom || '';
+    if (requestedTo && findPlace(requestedTo) && requestedTo !== defaultFrom) {
+      state.selectedTo = requestedTo;
+      el.toSelect.value = requestedTo;
     }
   }
 
@@ -286,6 +464,10 @@
       });
       const marker = L.marker(pointToLatLng(place), {icon, interactive: true, keyboard: false})
         .on('click', () => {
+          if (state.pickingStart) {
+            finishStartPicking(place.id);
+            return;
+          }
           selectPlace(place.id, false);
           state.selectedTo = place.id;
           el.toSelect.value = place.id;
@@ -319,13 +501,64 @@
     updateHeadingDisplay();
   }
 
-  function setStartFromPlace(id) {
+  function setStartFromPlace(id, options = {}) {
     const place = findPlace(id);
-    if (!place) return;
-    state.selectedFrom = id;
+    if (!place) return false;
+    if (state.navigation.active && !options.allowWhileNavigating) {
+      toast('Stop navigation before changing the starting point.');
+      el.fromSelect.value = state.selectedFrom || '';
+      return false;
+    }
+
+    state.selectedFrom = place.id;
     state.startPoint = {x: Number(place.x), y: Number(place.y), id: place.id, name: place.name};
-    el.fromSelect.value = id;
+    el.fromSelect.value = place.id;
     placeYouMarker();
+
+    if (state.selectedTo === place.id) {
+      state.selectedTo = null;
+      el.toSelect.value = '';
+    }
+    if (options.pan !== false && state.map) {
+      state.map.panTo(pointToLatLng(place), {animate: true});
+    }
+    return true;
+  }
+
+  function beginStartPicking() {
+    if (state.navigation.active) {
+      toast('Stop navigation before changing the starting point.');
+      return;
+    }
+    state.pickingStart = !state.pickingStart;
+    el.pickStartBtn?.classList.toggle('active', state.pickingStart);
+    if (state.pickingStart) {
+      el.side.classList.remove('open');
+      toast('Tap a place marker or anywhere on the map to choose the nearest starting place.');
+    } else {
+      toast('Start-point selection cancelled.');
+    }
+  }
+
+  function finishStartPicking(placeId) {
+    const place = findPlace(placeId);
+    if (!place || !setStartFromPlace(place.id)) return;
+    state.pickingStart = false;
+    el.pickStartBtn?.classList.remove('active');
+    clearRoute();
+    el.side.classList.add('open');
+    el.summaryTitle.textContent = `Starting at ${place.name}`;
+    el.summaryText.textContent = 'Choose a destination, then press Directions or Start navigation.';
+    toast(`Starting point changed to ${place.name}.`);
+  }
+
+  function nearestPlaceToPoint(point) {
+    let best = null;
+    state.places.forEach(place => {
+      const distance = pixelDistance(point, place);
+      if (!best || distance < best.distance) best = {place, distance};
+    });
+    return best?.place || null;
   }
 
   function selectPlace(id, shouldRoute) {
@@ -349,7 +582,7 @@
         <p>${escapeHtml(place.description || '')}</p>
         <div class="popup-actions">
           <button class="btn primary" data-action="route">Directions</button>
-          <button class="btn" data-action="start">Start direction</button>
+          <button class="btn" data-action="start">Start live navigation</button>
           <button class="btn" data-action="here">Start here</button>
         </div>
       </div>`;
@@ -383,7 +616,7 @@
       return null;
     }
 
-    const response = await fetch(apiUrl(`/external-guest-map/api/route?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&mode=walk`), {headers: {'Accept': 'application/json'}});
+    const response = await fetch(appendQuery(configuredUrl('mapRouteUrl', '/api/guest-map/route'), `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&mode=walk`), {headers: {'Accept': 'application/json'}});
     const payload = await response.json();
     if (!response.ok) {
       toast(payload.message || 'Route could not be calculated.');
@@ -392,11 +625,15 @@
 
     state.route = normalizeRoute(payload);
     state.navigation.remainingDistanceMeters = state.route.distance_meters;
+    state.navigation.remainingPath = state.route.path.map(point => ({...point}));
+    state.navigation.currentManeuvers = state.route.maneuvers || buildClientManeuvers(state.route.path, state.route.from.name, state.route.to.name);
+    state.navigation.currentManeuverIndex = 0;
     drawRemainingRoute(state.route.path);
-    renderSteps(payload.steps || []);
+    renderSteps(payload.steps || state.navigation.currentManeuvers.map(item => item.instruction));
+    renderGuidancePreview();
     updateRouteStats(state.route);
     el.summaryTitle.textContent = `Route to ${state.route.to.name}`;
-    el.summaryText.textContent = `${state.route.distance_meters} m • ${state.route.walk_minutes} min walk. Start Direction uses Leaflet CRS.Simple and road-constrained movement. Left/right only works when your movement lands on a valid connected road.`;
+    el.summaryText.textContent = `${state.route.distance_meters} m • ${state.route.walk_minutes} min walk from ${state.route.from.name}. At each junction, the phone heading selects the closest mapped branch and the blue route updates from the new road.`;
     el.bottomCard.style.display = 'block';
     el.bottomTitle.textContent = 'Route ready';
     el.bottomText.textContent = `${state.route.distance_meters} m remaining`;
@@ -411,6 +648,13 @@
       from: {...payload.from, x: Number(payload.from.x), y: Number(payload.from.y)},
       to: {...payload.to, x: Number(payload.to.x), y: Number(payload.to.y)},
       path,
+      maneuvers: (payload.maneuvers || []).map(item => ({
+        ...item,
+        distance_from_start_meters: Number(item.distance_from_start_meters || 0),
+        distance_to_next_meters: Number(item.distance_to_next_meters || 0),
+        bearing_after: Number.isFinite(Number(item.bearing_after)) ? Number(item.bearing_after) : null,
+        point: item.point ? {x: Number(item.point.x), y: Number(item.point.y)} : null,
+      })),
       distance_meters: Number(payload.distance_meters || Math.round(polylineLengthPx(path) * metersPerPixel())),
     };
   }
@@ -425,6 +669,7 @@
     el.progressStat.textContent = '0%';
     el.movedStat.textContent = '0 m';
     el.bottomCard.style.display = 'none';
+    el.navGuidance.classList.remove('preview');
   }
 
   function drawRemainingRoute(path) {
@@ -465,44 +710,101 @@
       toast('Navigation is already running.');
       return;
     }
-    const route = state.route || await showRoute(true);
-    if (!route) return;
 
-    resetNavigationRuntime();
-    state.navigation.active = true;
-    state.navigation.anchorMapPoint = {...route.from};
-    state.navigation.mapPoint = {...route.from};
-    state.navigation.lastAcceptedPoint = {...route.from};
-    state.navigation.remainingDistanceMeters = route.distance_meters;
-    state.navigation.currentRoad = nearestRoadProjection(route.from, null, Infinity);
-    state.startPoint = {x: route.from.x, y: route.from.y, name: 'You', id: null};
-    placeYouMarker();
-    setNavigationButtons(true);
-    el.side.classList.remove('open');
-    el.gpsStat.textContent = 'Starting';
-    el.summaryTitle.textContent = 'Starting direction';
-    el.summaryText.textContent = `First GPS sample is anchored to ${route.from.name}. The marker will only move along valid road graph segments. Movement into non-road area is blocked.`;
-    startHeadingTracking();
-    updateSensorStatus();
-    drawRemainingRoute(route.path);
-
-    if (!navigator.geolocation) {
-      toast('No browser GPS. Use keyboard/simulate for desktop testing or open on a phone with HTTPS.');
-      el.gpsStat.textContent = 'No GPS';
+    if (!window.isSecureContext && !isLikelyDesktop()) {
+      el.gpsStat.textContent = 'HTTPS required';
+      el.sensorStat.textContent = 'Blocked by browser';
+      el.summaryTitle.textContent = 'Open this map through HTTPS';
+      el.summaryText.textContent = 'Chrome only exposes phone motion and direction sensors in a secure HTTPS page. HTTP on a local network will display the map but cannot track walking.';
+      if (el.trackingModeBadge) el.trackingModeBadge.textContent = 'HTTPS required for mobile sensors';
+      toast('Mobile movement requires HTTPS.');
       return;
     }
 
-    state.navigation.watchId = navigator.geolocation.watchPosition(
-      onGpsPosition,
-      onGpsError,
-      {enableHighAccuracy: true, maximumAge: 1000, timeout: 15000}
-    );
+    resetNavigationRuntime();
+    const provisionalFrom = findPlace(state.selectedFrom);
+    const provisionalTo = findPlace(state.selectedTo);
+    const provisionalBearing = state.route
+      ? firstPathBearing(state.route.path)
+      : (provisionalFrom && provisionalTo ? bearingBetween(provisionalFrom, provisionalTo) : 0);
+
+    // Sensor permission must be requested directly from this button click on iPhone/iPad.
+    const sensorPromise = startDeviceSensors(provisionalBearing || 0);
+    const route = state.route || await showRoute(true);
+    if (!route) {
+      stopDeviceSensors();
+      return;
+    }
+
+    const selectedStart = {x: Number(route.from.x), y: Number(route.from.y)};
+    const initialBearing = firstPathBearing(route.path) ?? bearingBetween(selectedStart, route.to) ?? 0;
+    state.navigation.active = true;
+    requestWakeLock();
+    state.navigation.followMode = true;
+    state.navigation.anchorMapPoint = {...selectedStart};
+    state.navigation.mapPoint = {...selectedStart};
+    state.navigation.lastAcceptedPoint = {...selectedStart};
+    state.navigation.remainingDistanceMeters = route.distance_meters;
+    state.navigation.remainingPath = route.path.map(point => ({...point}));
+    state.navigation.currentRoad = nearestRoadProjection(selectedStart, null, Infinity, {movementBearing: initialBearing});
+    state.navigation.routeBearing = initialBearing;
+    state.navigation.currentManeuvers = route.maneuvers?.length ? route.maneuvers : buildClientManeuvers(route.path, route.from.name, route.to.name);
+    state.startPoint = {x: selectedStart.x, y: selectedStart.y, name: route.from.name, id: route.from.id};
+    initializeGraphWalker(initialBearing);
+    placeYouMarker();
+    setNavigationButtons(true);
+    el.navGuidance.classList.remove('preview');
+    el.side.classList.remove('open');
+    el.gpsStat.textContent = 'Starting';
+    el.summaryTitle.textContent = 'Starting live movement';
+    el.summaryText.textContent = `The marker starts at ${route.from.name}. At every junction, your phone direction selects the matching mapped road.`;
+    drawRemainingRoute(route.path);
+    updateGuidance(route.path, 'navigation_start');
+    state.map.setView(pointToLatLng(selectedStart), Math.max(state.map.getZoom(), 0.75), {animate: true});
+
+    const sensorResult = await sensorPromise;
+    state.navigation.motionEngine?.recalibrate(initialBearing);
+    updateSensorStatus();
+
+    if (state.navigation.motionListenerActive) {
+      el.gpsStat.textContent = 'Motion';
+      el.summaryTitle.textContent = 'Live movement ready';
+      el.summaryText.textContent = 'Walk normally while holding the phone forward. Steps move on the mapped road and your heading chooses the road at every junction.';
+      toast('Live device movement is ready. Walk with the phone facing forward.');
+      state.navigation.sensorWatchdogTimer = setTimeout(() => {
+        if (!state.navigation.active || state.navigation.motionDataReceived) return;
+        el.summaryTitle.textContent = 'Waiting for phone motion data';
+        el.summaryText.textContent = window.isSecureContext
+          ? 'Move the phone and take a few steps. If nothing changes, allow Motion & Orientation access in the browser settings.'
+          : 'Phone motion sensors require HTTPS. Open this project through an HTTPS address and start navigation again.';
+        if (el.trackingModeBadge) el.trackingModeBadge.textContent = window.isSecureContext ? 'Waiting for motion data' : 'HTTPS required';
+      }, 2200);
+      return;
+    }
+
+    // GPS is only a fallback when DeviceMotion is unavailable or denied.
+    if (navigator.geolocation) {
+      state.navigation.watchId = navigator.geolocation.watchPosition(
+        onGpsPosition,
+        onGpsError,
+        {enableHighAccuracy: true, maximumAge: 500, timeout: 15000}
+      );
+      el.gpsStat.textContent = 'GPS fallback';
+      el.summaryText.textContent = 'Device motion was unavailable, so browser location is being used as a fallback.';
+      return;
+    }
+
+    el.gpsStat.textContent = 'No motion';
+    el.summaryTitle.textContent = 'Movement sensor unavailable';
+    el.summaryText.textContent = sensorResult?.motionPermission === 'denied'
+      ? 'Motion permission was denied. Reload, press Start live navigation, and allow Motion & Orientation access.'
+      : 'This browser does not expose DeviceMotion. Use HTTPS on a phone, or use Simulate movement for testing.';
+    toast('Motion sensor unavailable. Allow Motion & Orientation access and use HTTPS.');
   }
 
   function onGpsPosition(position) {
     if (!state.navigation.active || !state.route) return;
     const c = position.coords;
-    const now = Date.now();
     const geo = {
       lat: c.latitude,
       lng: c.longitude,
@@ -510,44 +812,75 @@
       altitude: c.altitude,
       heading: c.heading,
       speed: c.speed,
-      at: now,
+      at: Date.now(),
     };
     state.navigation.lastAccuracy = Number.isFinite(c.accuracy) ? c.accuracy : null;
     applyHeadingFromGeo(geo);
+
+    const calibratedPoint = absoluteGeoToMapPoint(geo);
+    if (calibratedPoint) {
+      const isFirstAbsoluteSample = !state.navigation.lastGeo;
+      const movedMeters = state.navigation.lastGeo ? haversineMeters(state.navigation.lastGeo, geo) : Infinity;
+      state.navigation.lastGeo = geo;
+      if (Number.isFinite(movedMeters) && movedMeters < state.navigation.minGpsMoveMeters) {
+        updateLiveText('gps_waiting', 'GPS received; waiting for meaningful movement.');
+        return;
+      }
+      if (Number.isFinite(geo.accuracy) && geo.accuracy > 80) {
+        updateLiveText('coarse_gps_waiting', 'GPS accuracy is too low; holding the last road position.');
+        return;
+      }
+      const point = smoothMapPoint(calibratedPoint, geo.accuracy);
+      const previous = state.navigation.lastRawPoint || point;
+      state.navigation.lastRawPoint = point;
+      const travelBearing = bearingBetween(previous, point);
+      if (Number.isFinite(travelBearing) && movedMeters >= 2) {
+        state.navigation.heading = travelBearing;
+        state.navigation.headingSource = 'gps_travel_direction';
+      }
+      applyRoadConstrainedPoint(point, geo, isFirstAbsoluteSample ? 'gps_absolute_start' : 'absolute_geolocation');
+      return;
+    }
 
     if (!state.navigation.anchorGeo) {
       state.navigation.anchorGeo = geo;
       state.navigation.lastGeo = geo;
       state.navigation.lastRawPoint = {...state.navigation.anchorMapPoint};
+      state.navigation.smoothedRawPoint = {...state.navigation.anchorMapPoint};
       applyRoadConstrainedPoint({...state.navigation.anchorMapPoint}, geo, 'gps_anchor');
-      toast(`GPS anchor received. Your phone location is now treated as ${state.route.from.name}.`);
+      toast(`GPS anchor received. Your phone location is being treated as ${state.route.from.name}.`);
       return;
     }
 
     const movedMeters = haversineMeters(state.navigation.lastGeo, geo);
     state.navigation.lastGeo = geo;
     if (Number.isFinite(movedMeters) && movedMeters < state.navigation.minGpsMoveMeters) {
-      updateLiveText('gps_waiting', 'GPS received, waiting for real movement.');
+      updateLiveText('gps_waiting', 'GPS received; waiting for meaningful movement.');
       return;
     }
     if (Number.isFinite(geo.accuracy) && geo.accuracy > 70) {
-      updateLiveText('coarse_gps_waiting', 'GPS accuracy is too low; holding marker on road.');
+      updateLiveText('coarse_gps_waiting', 'GPS accuracy is too low; holding the last road position.');
       return;
     }
 
     const raw = geoToRelativeMapPoint(geo);
+    const point = smoothMapPoint(raw.point, geo.accuracy);
     if (Number.isFinite(raw.bearing)) {
       state.navigation.heading = raw.bearing;
       state.navigation.headingSource = 'gps_travel_direction';
     }
-    applyRoadConstrainedPoint(raw.point, geo, 'browser_geolocation');
+    applyRoadConstrainedPoint(point, geo, 'anchored_geolocation');
   }
 
   function onGpsError(error) {
     console.warn(error);
+    if (state.navigation.motionListenerActive) {
+      el.gpsStat.textContent = 'Motion';
+      return;
+    }
     el.gpsStat.textContent = 'Blocked';
-    updateLiveText('gps_error', 'GPS blocked/unavailable. Use phone HTTPS and allow Location.');
-    toast('GPS blocked/unavailable.');
+    updateLiveText('gps_error', 'GPS fallback is blocked. Allow Location or enable Motion & Orientation access.');
+    toast('Tracking permission is blocked.');
   }
 
   function geoToRelativeMapPoint(geo) {
@@ -567,59 +900,117 @@
     return {point, bearing: bearingBetween(previous, point)};
   }
 
-  function applyRoadConstrainedPoint(rawPoint, geo, source) {
+  function applyRoadConstrainedPoint(rawPoint, geo, source, options = {}) {
     const previous = state.navigation.lastAcceptedPoint || state.route.from;
-    const projection = nearestRoadProjection(rawPoint, previous, state.navigation.snapPx);
+    const accuracyMeters = Number.isFinite(Number(geo?.accuracy)) ? Number(geo.accuracy) : 12;
+    const dynamicSnapPx = clamp(Math.max(state.navigation.snapPx, accuracyMeters / metersPerPixel() * 1.25), 18, 80);
+    const projection = options.projectionOverride || nearestRoadProjection(rawPoint, previous, dynamicSnapPx, options);
 
-    if (!projection) {
+    if (!projection && !options.exactGraphPoint) {
+      state.navigation.offRouteSamples += 1;
       state.navigation.blockedReason = 'No valid road under movement';
-      updateLiveText(source, 'Movement blocked: no valid road at that position.');
+      setRerouteStatus(state.navigation.offRouteSamples >= 3 ? 'off-route' : 'searching');
+      updateLiveText(source, 'Location is away from the mapped resort paths. Holding the last valid road position.');
       flashMarkerBlocked();
       return;
     }
 
-    const jumpPx = pixelDistance(previous, projection.point);
+    const jumpPx = projection ? pixelDistance(previous, projection.point) : pixelDistance(previous, rawPoint);
     const rawMovePx = pixelDistance(previous, rawPoint);
-    const maxJump = Math.max(24, Math.min(state.navigation.movementLimitPx, rawMovePx + 18));
-    if (jumpPx > maxJump && source !== 'simulated' && !source.startsWith('keyboard_')) {
+    const maxJump = Math.max(24, Math.min(state.navigation.movementLimitPx + dynamicSnapPx * 0.35, rawMovePx + 20));
+    if (jumpPx > maxJump && !options.exactGraphPoint && source !== 'simulated' && !source.startsWith('keyboard_') && source !== 'gps_absolute_start') {
+      state.navigation.offRouteSamples += 1;
       state.navigation.blockedReason = 'Road jump rejected';
-      updateLiveText(source, 'Movement held: closest road is too far from current road position.');
+      setRerouteStatus('searching');
+      updateLiveText(source, 'Possible GPS jump detected. Keeping the last trusted road position.');
       flashMarkerBlocked();
       return;
     }
 
+    const wasRoad = state.navigation.currentRoad;
+    const changedRoad = !!(wasRoad && projection?.edge && String(wasRoad.edge.id) !== String(projection.edge.id));
+    state.navigation.offRouteSamples = 0;
     state.navigation.blockedReason = null;
-    const accepted = projection.point;
+    const accepted = (options.routeLocked || options.exactGraphPoint) ? {x: Number(rawPoint.x), y: Number(rawPoint.y)} : projection.point;
     const deltaMeters = pixelDistance(previous, accepted) * metersPerPixel();
-    if (deltaMeters > 0.2) state.navigation.totalMovedMeters += deltaMeters;
+    if (deltaMeters > 0.2 && deltaMeters < 80) state.navigation.totalMovedMeters += deltaMeters;
     state.navigation.lastAcceptedPoint = accepted;
     state.navigation.mapPoint = accepted;
-    state.navigation.currentRoad = projection;
-    state.navigation.routeBearing = projection.bearing;
+    if (projection) state.navigation.currentRoad = projection;
+    if (Number.isFinite(projection?.bearing)) state.navigation.routeBearing = projection.bearing;
 
     state.startPoint = {x: accepted.x, y: accepted.y, id: null, name: 'Live road position'};
     placeYouMarker();
 
-    const remaining = calculateRemainingRouteFromProjection(projection);
-    if (remaining && remaining.path.length >= 2) {
-      state.navigation.remainingDistanceMeters = remaining.distanceMeters;
-      state.navigation.progressPercent = calculateProgressPercent(remaining.distanceMeters);
+    const previousRemainingMeters = state.navigation.remainingDistanceMeters;
+    let remaining = null;
+    if (Array.isArray(options.expectedRemainingPath) && options.expectedRemainingPath.length) {
+      const lockedPath = simplifyDuplicatePoints([
+        accepted,
+        ...options.expectedRemainingPath.slice(1),
+      ]);
+      remaining = {
+        path: lockedPath,
+        distanceMeters: Number.isFinite(Number(options.expectedRemainingMeters))
+          ? Math.max(0, Number(options.expectedRemainingMeters))
+          : polylineLengthPx(lockedPath) * metersPerPixel(),
+        signature: options.expectedRemainingSignature || `graph-walk:${routeSignatureForPath(lockedPath)}`,
+      };
+    } else {
+      remaining = calculateRemainingRouteFromProjection(projection);
+    }
+    if (remaining && remaining.path.length >= 1) {
+      state.navigation.routeBearing = remaining.path.length >= 2
+        ? (firstPathBearing(remaining.path) ?? projection?.bearing ?? state.navigation.routeBearing)
+        : (projection?.bearing ?? state.navigation.routeBearing);
+      state.navigation.remainingDistanceMeters = options.routeLocked && !options.allowRemainingIncrease && Number.isFinite(previousRemainingMeters)
+        ? Math.min(previousRemainingMeters, remaining.distanceMeters)
+        : remaining.distanceMeters;
+      state.navigation.remainingPath = remaining.path.map(point => ({...point}));
+      state.navigation.progressPercent = calculateProgressPercent(state.navigation.remainingDistanceMeters);
       drawRemainingRoute(remaining.path);
+
+      const now = Date.now();
+      const routeChanged = remaining.signature !== state.navigation.routeSignature;
+      if (routeChanged || now - state.navigation.lastRouteRefreshAt > 2500) {
+        state.navigation.routeSignature = remaining.signature;
+        state.navigation.lastRouteRefreshAt = now;
+        state.navigation.currentManeuvers = buildClientManeuvers(remaining.path, 'your location', state.route.to.name);
+        const meaningfulDetour = changedRoad && Number.isFinite(previousRemainingMeters)
+          && remaining.distanceMeters > previousRemainingMeters + Math.max(12, previousRemainingMeters * 0.08);
+        if (meaningfulDetour) {
+          state.navigation.rerouteCount += 1;
+          setRerouteStatus('rerouting');
+        } else {
+          setRerouteStatus('on-route');
+        }
+      } else {
+        setRerouteStatus('on-route');
+      }
+      updateGuidance(remaining.path, source);
     }
 
     updateHeadingDisplay();
-    if (state.navigation.active) state.map.panTo(pointToLatLng(accepted), {animate: true, duration: 0.3});
+    if (state.navigation.active && state.navigation.followMode) {
+      state.map.panTo(pointToLatLng(accepted), {animate: true, duration: 0.28});
+    }
     maybeStoreLocation(geo, accepted, state.navigation.totalMovedMeters, state.navigation.progressPercent, source);
     updateInstruction(source, projection);
 
-    if (pixelDistance(accepted, state.route.to) <= 18 || state.navigation.remainingDistanceMeters <= 3) {
-      toast('Arrived at destination.');
+    const arrivalRadiusPx = Math.max(2, 3 / metersPerPixel());
+    if (pixelDistance(accepted, state.route.to) <= arrivalRadiusPx || state.navigation.remainingDistanceMeters <= 3) {
+      toast('You have arrived.');
+      speakInstruction(`You have arrived at ${state.route.to.name}.`, 'arrived');
       stopDirection(true);
     }
   }
 
-  function nearestRoadProjection(rawPoint, previousPoint = null, maxDistance = Infinity) {
+  function nearestRoadProjection(rawPoint, previousPoint = null, maxDistance = Infinity, options = {}) {
     let best = null;
+    const currentEdge = state.navigation.currentRoad?.edge;
+    const heading = Number.isFinite(options.movementBearing)
+      ? Number(options.movementBearing)
+      : (Number.isFinite(state.navigation.heading) ? state.navigation.heading : null);
     for (const edge of state.graph.edges) {
       const path = edge.path || [];
       for (let i = 1; i < path.length; i++) {
@@ -628,7 +1019,14 @@
         const proj = projectPointToSegment(rawPoint, a, b);
         if (proj.distancePx > maxDistance) continue;
         const distFromPrev = previousPoint ? pixelDistance(previousPoint, proj.point) : 0;
-        const score = proj.distancePx * 8 + distFromPrev;
+        const segmentBearing = bearingBetween(a, b);
+        const reverseBearing = Number.isFinite(segmentBearing) ? normalizeDegrees(segmentBearing + 180) : null;
+        const headingPenalty = Number.isFinite(heading) && Number.isFinite(segmentBearing)
+          ? Math.min(angleDifference(heading, segmentBearing), angleDifference(heading, reverseBearing)) * (options.routeLocked ? 0.28 : 0.12)
+          : 0;
+        const sameEdgeBonus = currentEdge && String(currentEdge.id) === String(edge.id) ? (options.routeLocked ? -2 : -22) : 0;
+        const connectedBonus = currentEdge && (currentEdge.from === edge.from || currentEdge.from === edge.to || currentEdge.to === edge.from || currentEdge.to === edge.to) ? -8 : 0;
+        const score = proj.distancePx * (options.routeLocked ? 10 : 7) + distFromPrev * 1.15 + headingPenalty + sameEdgeBonus + connectedBonus;
         if (!best || score < best.score) {
           best = {
             edge,
@@ -636,7 +1034,7 @@
             point: proj.point,
             t: proj.t,
             distancePx: proj.distancePx,
-            bearing: bearingBetween(a, b),
+            bearing: segmentBearing,
             score,
           };
         }
@@ -648,7 +1046,10 @@
   function calculateRemainingRouteFromProjection(projection) {
     if (!projection || !state.route) return null;
     const destNode = findPlace(state.route.to.id)?.route_node_code;
-    if (!destNode) return {path: [projection.point, state.route.to], distanceMeters: pixelDistance(projection.point, state.route.to) * metersPerPixel()};
+    if (!destNode) {
+      const path = [projection.point, state.route.to];
+      return {path, distanceMeters: pixelDistance(projection.point, state.route.to) * metersPerPixel(), signature: routeSignatureForPath(path)};
+    }
 
     const pathToFrom = partialEdgePath(projection.edge.path, projection.segmentIndex, projection.t, true);
     const pathToTo = partialEdgePath(projection.edge.path, projection.segmentIndex, projection.t, false);
@@ -657,14 +1058,19 @@
 
     const candidateA = optionA ? joinPaths([pathToFrom, optionA.path]) : null;
     const candidateB = optionB ? joinPaths([pathToTo, optionB.path]) : null;
-
     const distA = candidateA ? polylineLengthPx(candidateA) * metersPerPixel() : Infinity;
     const distB = candidateB ? polylineLengthPx(candidateB) * metersPerPixel() : Infinity;
-    const chosenPath = distA <= distB ? candidateA : candidateB;
-    const chosenDistance = Math.min(distA, distB);
+    const useA = distA <= distB;
+    const chosenPath = useA ? candidateA : candidateB;
+    const chosenDistance = useA ? distA : distB;
 
     if (!chosenPath) return null;
-    return {path: simplifyDuplicatePoints(chosenPath), distanceMeters: chosenDistance};
+    const cleanPath = simplifyDuplicatePoints(chosenPath);
+    return {
+      path: cleanPath,
+      distanceMeters: chosenDistance,
+      signature: `${projection.edge.id}:${useA ? projection.edge.from : projection.edge.to}:${destNode}:${routeSignatureForPath(cleanPath)}`,
+    };
   }
 
   function partialEdgePath(path, segmentIndex, t, towardFrom) {
@@ -713,7 +1119,7 @@
     }
     let path = [];
     edges.forEach(edge => { path = joinPaths([path, edge.path]); });
-    return {path: simplifyDuplicatePoints(path), distanceMeters: dist[endCode]};
+    return {path: simplifyDuplicatePoints(path), distanceMeters: dist[endCode], edges, firstEdgeId: edges[0]?.id ?? null};
   }
 
   function calculateProgressPercent(remainingMeters) {
@@ -727,16 +1133,16 @@
     const moved = Math.round(state.navigation.totalMovedMeters || 0);
     const progress = Math.round(state.navigation.progressPercent || 0);
     const accuracy = Number.isFinite(state.navigation.lastAccuracy) ? `${Math.round(state.navigation.lastAccuracy)} m` : source;
-    el.gpsStat.textContent = source === 'gps_anchor' ? 'Anchor' : source.startsWith('keyboard_') ? 'Key' : source === 'simulated' ? 'Sim' : accuracy;
+    el.gpsStat.textContent = source.startsWith('device_motion') ? 'Motion' : source === 'gps_anchor' ? 'Anchor' : source.startsWith('keyboard_') ? 'Key' : source === 'simulated' ? 'Sim' : accuracy;
     el.progressStat.textContent = `${progress}%`;
     el.movedStat.textContent = `${moved} m`;
     updateHeadingDisplay();
 
-    const roadText = projection ? `Current road direction: ${formatBearing(projection.bearing)}.` : '';
+    const roadText = projection ? `Following ${formatBearing(projection.bearing)}.` : '';
     el.summaryTitle.textContent = 'Navigation running';
-    el.summaryText.textContent = `${moved} m moved • ${remaining} m remaining. Marker is constrained to the road graph; left/right only works when a valid road exists there. ${roadText}`;
-    el.bottomTitle.textContent = 'Direction running';
-    el.bottomText.textContent = `${progress}% complete • ${remaining} m remaining`;
+    el.summaryText.textContent = `${remaining} m remaining • ${progress}% complete. ${roadText}`;
+    el.bottomTitle.textContent = 'Live directions';
+    el.bottomText.textContent = `${formatDistance(remaining)} remaining • ${Math.max(1, Math.ceil(remaining / Number(state.data.map.walk_meters_per_minute || 75)))} min`;
   }
 
   function updateLiveText(source, message) {
@@ -778,40 +1184,57 @@
 
   function nudgeByKeyboard(directionDegOffset) {
     if (!state.navigation.active || !state.route) {
-      toast('Start Direction first. Keyboard is only for desktop road testing.');
+      toast('Start live navigation first. Keyboard is only for desktop road testing.');
       return;
     }
-    const base = state.navigation.lastAcceptedPoint || state.route.from;
-    const bearing = Number.isFinite(state.navigation.routeBearing) ? state.navigation.routeBearing : bearingBetween(base, state.route.to) || 0;
-    const finalBearing = normalizeDegrees(bearing + directionDegOffset);
-    const stepPx = state.navigation.keyboardStepMeters / metersPerPixel();
-    const point = {
-      x: clamp(base.x + Math.sin(finalBearing * Math.PI / 180) * stepPx, 0, Number(state.data.map.width)),
-      y: clamp(base.y - Math.cos(finalBearing * Math.PI / 180) * stepPx, 0, Number(state.data.map.height)),
-    };
-    state.navigation.heading = finalBearing;
-    state.navigation.headingSource = 'keyboard_heading';
-    applyRoadConstrainedPoint(point, state.navigation.lastGeo, directionDegOffset === 0 ? 'keyboard_forward' : directionDegOffset === 180 ? 'keyboard_backward' : directionDegOffset > 0 ? 'keyboard_right' : 'keyboard_left');
+    const baseHeading = Number.isFinite(state.navigation.heading)
+      ? state.navigation.heading
+      : (Number.isFinite(state.navigation.routeBearing) ? state.navigation.routeBearing : 0);
+    if (directionDegOffset !== 0) {
+      state.navigation.heading = normalizeDegrees(baseHeading + directionDegOffset);
+      state.navigation.headingSource = 'keyboard_heading';
+      state.navigation.headingHistory.push({heading: state.navigation.heading, at: Date.now()});
+      state.navigation.headingHistory = state.navigation.headingHistory.slice(-NAV_CONFIG.headingHistoryMax);
+      updateHeadingDisplay();
+      return;
+    }
+    advanceByGraphHeading(state.navigation.keyboardStepMeters, 'keyboard_forward_graph');
   }
 
   function stopDirection(arrived = false) {
     if (state.navigation.watchId !== null) navigator.geolocation.clearWatch(state.navigation.watchId);
     if (state.navigation.simulateTimer !== null) clearInterval(state.navigation.simulateTimer);
-    stopHeadingTracking();
+    if (state.navigation.sensorWatchdogTimer !== null) clearTimeout(state.navigation.sensorWatchdogTimer);
+    stopDeviceSensors();
+    releaseWakeLock();
     const routeLogId = state.route?.route_log_id;
     state.navigation.active = false;
     state.navigation.watchId = null;
     state.navigation.simulateTimer = null;
     setNavigationButtons(false);
     if (routeLogId) finishNavigation(routeLogId, arrived ? 'arrived' : 'stopped');
-    if (!arrived) toast('Navigation stopped.');
-    if (!arrived) el.gpsStat.textContent = 'Off';
+    if (!arrived) {
+      toast('Navigation stopped.');
+      el.gpsStat.textContent = 'Off';
+      renderGuidancePreview();
+    } else {
+      el.maneuverIcon.textContent = '✓';
+      el.maneuverDistance.textContent = 'Arrived';
+      el.maneuverText.textContent = state.route?.to?.name || 'Destination';
+      el.maneuverSubtext.textContent = 'Navigation complete';
+      el.navGuidance.classList.add('preview');
+    }
   }
 
   function resetNavigationRuntime() {
     if (state.navigation.watchId !== null) navigator.geolocation.clearWatch(state.navigation.watchId);
     if (state.navigation.simulateTimer !== null) clearInterval(state.navigation.simulateTimer);
-    stopHeadingTracking();
+    if (state.navigation.sensorWatchdogTimer !== null) clearTimeout(state.navigation.sensorWatchdogTimer);
+    stopDeviceSensors();
+    releaseWakeLock();
+    const geoCalibration = state.navigation.geoCalibration;
+    const motionEngine = state.navigation.motionEngine;
+    const voiceEnabled = state.navigation.voiceEnabled;
     Object.assign(state.navigation, {
       active: false,
       watchId: null,
@@ -820,66 +1243,252 @@
       anchorMapPoint: null,
       lastGeo: null,
       lastRawPoint: null,
+      smoothedRawPoint: null,
       mapPoint: null,
       lastAcceptedPoint: null,
       routeBearing: null,
       heading: null,
       headingSource: null,
+      motionEngine,
+      graphWalker: null,
+      headingHistory: [],
+      lastBranchMessage: null,
+      motionListenerActive: false,
+      orientationListenerActive: false,
+      motionPermission: 'unknown',
+      orientationPermission: 'unknown',
+      stepCount: 0,
+      lastMotionStepAt: 0,
+      lastSensorAt: 0,
+      motionDataReceived: false,
+      orientationDataReceived: false,
+      sensorWatchdogTimer: null,
+      wakeLock: null,
       lastAccuracy: null,
       lastSentAt: 0,
       totalMovedMeters: 0,
       remainingDistanceMeters: state.route?.distance_meters || 0,
+      remainingPath: state.route?.path ? state.route.path.map(point => ({...point})) : [],
       progressPercent: 0,
       currentRoad: null,
       blockedReason: null,
       source: 'off',
+      followMode: true,
+      voiceEnabled,
+      lastSpokenKey: null,
+      currentManeuvers: state.route?.maneuvers || [],
+      currentManeuverIndex: 0,
+      routeSignature: null,
+      lastRouteRefreshAt: 0,
+      offRouteSamples: 0,
+      rerouteCount: 0,
+      geoCalibration,
     });
   }
 
-  async function startHeadingTracking() {
-    if (state.navigation.headingListenerActive || typeof window.DeviceOrientationEvent === 'undefined') {
-      updateHeadingDisplay();
+  function setupMotionEngine() {
+    if (state.navigation.motionEngine || typeof window.ResortMotionEngine !== 'function') return;
+    state.navigation.motionEngine = new window.ResortMotionEngine({
+      defaultStepLengthMeters: 0.72,
+      onHeading: onSensorHeading,
+      onStep: onSensorStep,
+      onMotion: onSensorMotion,
+      onStatus: onSensorStatus,
+    });
+  }
+
+  async function startDeviceSensors(initialMapHeading) {
+    setupMotionEngine();
+    if (!state.navigation.motionEngine) {
+      state.navigation.motionPermission = 'unsupported';
+      state.navigation.orientationPermission = 'unsupported';
+      return {motionPermission: 'unsupported', orientationPermission: 'unsupported'};
+    }
+    const result = await state.navigation.motionEngine.start(initialMapHeading || 0);
+    state.navigation.motionListenerActive = state.navigation.motionEngine.motionActive;
+    state.navigation.orientationListenerActive = state.navigation.motionEngine.orientationActive;
+    state.navigation.motionPermission = result.motionPermission;
+    state.navigation.orientationPermission = result.orientationPermission;
+    updateSensorStatus();
+    return result;
+  }
+
+  function stopDeviceSensors() {
+    state.navigation.motionEngine?.stop();
+    state.navigation.motionListenerActive = false;
+    state.navigation.orientationListenerActive = false;
+  }
+
+  function onSensorStatus(status) {
+    state.navigation.motionListenerActive = !!status.motion;
+    state.navigation.orientationListenerActive = !!status.orientation;
+    state.navigation.motionPermission = status.motionPermission || state.navigation.motionPermission;
+    state.navigation.orientationPermission = status.orientationPermission || state.navigation.orientationPermission;
+    updateSensorStatus();
+  }
+
+  function onSensorHeading(payload) {
+    if (!Number.isFinite(payload?.heading)) return;
+    clearSensorWatchdog();
+    state.navigation.heading = normalizeDegrees(payload.heading);
+    state.navigation.headingSource = payload.source || 'device_orientation';
+    state.navigation.lastSensorAt = payload.at || Date.now();
+    state.navigation.headingHistory.push({heading: state.navigation.heading, at: state.navigation.lastSensorAt});
+    state.navigation.headingHistory = state.navigation.headingHistory.slice(-NAV_CONFIG.headingHistoryMax);
+    state.navigation.orientationDataReceived = true;
+    updateHeadingDisplay();
+    updateSensorStatus();
+  }
+
+  function onSensorMotion(payload) {
+    clearSensorWatchdog();
+    state.navigation.motionDataReceived = true;
+    state.navigation.lastSensorAt = payload?.at || Date.now();
+    updateSensorStatus();
+  }
+
+  function onSensorStep(payload) {
+    if (!state.navigation.active || !state.route) return;
+    state.navigation.stepCount = Number(payload.count || state.navigation.stepCount + 1);
+    state.navigation.lastMotionStepAt = payload.at || Date.now();
+    state.navigation.lastSensorAt = payload.at || Date.now();
+    if (Number.isFinite(payload.heading)) {
+      state.navigation.heading = normalizeDegrees(payload.heading);
+      state.navigation.headingSource = 'device_motion_heading';
+      state.navigation.headingHistory.push({heading: state.navigation.heading, at: state.navigation.lastSensorAt});
+      state.navigation.headingHistory = state.navigation.headingHistory.slice(-NAV_CONFIG.headingHistoryMax);
+    }
+    advanceByDeviceMotion(Number(payload.stepLengthMeters || 0.72));
+    if (el.trackingModeBadge) el.trackingModeBadge.textContent = `Live device motion • ${state.navigation.stepCount} step${state.navigation.stepCount === 1 ? '' : 's'}`;
+  }
+
+  function advanceByDeviceMotion(distanceMeters) {
+    advanceByGraphHeading(distanceMeters, 'device_motion_graph');
+  }
+
+  function initializeGraphWalker(initialHeading) {
+    if (typeof window.ResortGraphWalker !== 'function' || !state.graph) return null;
+    state.navigation.graphWalker = new window.ResortGraphWalker({
+      nodes: state.graph.nodes,
+      edges: state.graph.edges,
+      metersPerPixel: metersPerPixel(),
+      routeBiasDegrees: NAV_CONFIG.routeBiasDegrees,
+      branchLockMeters: 3.2,
+      reversePenaltyDegrees: 44,
+      reverseAllowanceDegrees: 38,
+      reverseSwitchMarginDegrees: 30,
+    });
+    const startPlace = findPlace(state.route?.from?.id || state.selectedFrom);
+    const startPoint = state.route?.from || state.startPoint || startPlace;
+    state.navigation.graphWalker.setPosition(
+      startPoint,
+      initialHeading,
+      startPlace?.route_node_code || null
+    );
+    state.navigation.headingHistory = [];
+    return state.navigation.graphWalker;
+  }
+
+  function stableDeviceHeading() {
+    const now = Date.now();
+    const history = (state.navigation.headingHistory || []).filter(sample => now - sample.at <= NAV_CONFIG.headingHistoryMs);
+    state.navigation.headingHistory = history.slice(-NAV_CONFIG.headingHistoryMax);
+    if (!history.length) return Number.isFinite(state.navigation.heading) ? state.navigation.heading : state.navigation.routeBearing;
+    let x = 0;
+    let y = 0;
+    history.forEach((sample, index) => {
+      const rad = Number(sample.heading) * Math.PI / 180;
+      const weight = index + 1;
+      x += Math.cos(rad) * weight;
+      y += Math.sin(rad) * weight;
+    });
+    if (Math.hypot(x, y) < 0.01) return history[history.length - 1].heading;
+    return normalizeDegrees(Math.atan2(y, x) * 180 / Math.PI);
+  }
+
+  function preferredEdgeIdFromNode(nodeCode) {
+    const destinationNode = findPlace(state.route?.to?.id)?.route_node_code;
+    if (!nodeCode || !destinationNode) return null;
+    return buildNetworkPathFromNode(nodeCode, destinationNode)?.firstEdgeId ?? null;
+  }
+
+  function calculateRemainingRouteFromWalker(result) {
+    if (!result || !state.route) return null;
+    const destinationNode = findPlace(state.route.to.id)?.route_node_code;
+    if (!destinationNode) return null;
+    if (result.kind === 'node') {
+      const network = buildNetworkPathFromNode(result.nodeCode, destinationNode);
+      if (!network) return null;
+      const path = simplifyDuplicatePoints([result.point, ...(network.path || [])]);
+      return {
+        path,
+        distanceMeters: polylineLengthPx(path) * metersPerPixel(),
+        signature: `node:${result.nodeCode}:${destinationNode}:${routeSignatureForPath(path)}`,
+      };
+    }
+    return calculateRemainingRouteFromProjection(result.projection);
+  }
+
+  function advanceByGraphHeading(distanceMeters, source = 'graph_walk') {
+    const walker = state.navigation.graphWalker || initializeGraphWalker(state.navigation.routeBearing || 0);
+    if (!walker || !state.route) return;
+    const heading = stableDeviceHeading();
+    const before = walker.snapshot();
+    const preferredEdge = before?.kind === 'node' ? preferredEdgeIdFromNode(before.nodeCode) : null;
+    const result = walker.step(clamp(distanceMeters, 0.35, 1.15), heading, preferredEdge);
+    if (!result || !result.point || result.traveledMeters <= 0) return;
+
+    const remaining = calculateRemainingRouteFromWalker(result);
+    const projection = result.projection || nearestRoadProjection(result.point, state.navigation.lastAcceptedPoint, Infinity, {movementBearing: result.bearing});
+    if (Number.isFinite(result.bearing)) state.navigation.routeBearing = result.bearing;
+
+    applyRoadConstrainedPoint(result.point, null, source, {
+      exactGraphPoint: true,
+      projectionOverride: projection,
+      movementBearing: result.bearing,
+      expectedRemainingPath: remaining?.path,
+      expectedRemainingMeters: remaining?.distanceMeters,
+      expectedRemainingSignature: remaining?.signature,
+      allowRemainingIncrease: true,
+    });
+
+    if (result.selectedBranch) {
+      const key = `${result.selectedBranch.fromNode}:${result.selectedBranch.edgeId}:${result.selectedBranch.toNode}`;
+      if (state.navigation.lastBranchMessage !== key) {
+        state.navigation.lastBranchMessage = key;
+        const direction = formatBearing(result.selectedBranch.bearing);
+        if (el.rerouteBadge) el.rerouteBadge.textContent = `Junction: ${direction}`;
+      }
+    }
+
+    const markerElement = state.youMarker?.getElement();
+    markerElement?.classList.add('sensor-step');
+    setTimeout(() => markerElement?.classList.remove('sensor-step'), 130);
+  }
+
+  // Kept for desktop forward-key compatibility. It now uses the same
+  // heading-aware graph walker as real phone steps.
+  function advanceAlongActiveRoute(distanceMeters, source = 'route_follow') {
+    advanceByGraphHeading(distanceMeters, source);
+  }
+
+  function recalibrateDeviceDirection() {
+    if (!state.navigation.active) {
+      toast('Start live navigation first.');
       return;
     }
-    const enable = () => {
-      window.addEventListener('deviceorientationabsolute', onDeviceOrientation, true);
-      window.addEventListener('deviceorientation', onDeviceOrientation, true);
-      state.navigation.headingListenerActive = true;
-      state.navigation.headingSource = state.navigation.headingSource || 'waiting';
-      updateHeadingDisplay();
-    };
-    try {
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        const permission = await DeviceOrientationEvent.requestPermission();
-        if (permission === 'granted') enable();
-        else { state.navigation.headingSource = 'blocked'; updateHeadingDisplay(); }
-      } else enable();
-    } catch (_) {
-      state.navigation.headingSource = 'unavailable';
-      updateHeadingDisplay();
-    }
-  }
-
-  function stopHeadingTracking() {
-    if (!state.navigation.headingListenerActive) return;
-    window.removeEventListener('deviceorientationabsolute', onDeviceOrientation, true);
-    window.removeEventListener('deviceorientation', onDeviceOrientation, true);
-    state.navigation.headingListenerActive = false;
-  }
-
-  function onDeviceOrientation(event) {
-    let heading = null;
-    if (Number.isFinite(event.webkitCompassHeading)) heading = event.webkitCompassHeading;
-    else if (event.absolute === true && Number.isFinite(event.alpha)) heading = 360 - event.alpha;
-    else if (Number.isFinite(event.alpha) && !isLikelyDesktop()) heading = 360 - event.alpha;
-    if (!Number.isFinite(heading)) return;
-    const screenAngle = screen.orientation && Number.isFinite(screen.orientation.angle) ? screen.orientation.angle : (Number(window.orientation) || 0);
-    state.navigation.heading = normalizeDegrees(heading + screenAngle);
-    state.navigation.headingSource = event.absolute ? 'device_compass' : 'device_orientation';
+    const targetBearing = Number.isFinite(state.navigation.routeBearing)
+      ? state.navigation.routeBearing
+      : firstPathBearing(state.route?.path || []) || 0;
+    state.navigation.motionEngine?.recalibrate(targetBearing);
+    state.navigation.heading = targetBearing;
+    state.navigation.headingSource = 'manual_direction_alignment';
     updateHeadingDisplay();
+    toast('Direction aligned. Point the phone forward and continue walking.');
   }
 
   function applyHeadingFromGeo(geo) {
+    if (state.navigation.orientationListenerActive) return;
     if (!geo || !Number.isFinite(geo.heading)) return;
     state.navigation.heading = normalizeDegrees(geo.heading);
     state.navigation.headingSource = 'gps_heading';
@@ -910,9 +1519,92 @@
   function updateSensorStatus() {
     const hasGeo = !!navigator.geolocation;
     const hasOrientation = typeof window.DeviceOrientationEvent !== 'undefined';
-    const label = isLikelyDesktop() ? (hasGeo ? 'Laptop GPS' : 'Laptop') : (hasGeo && hasOrientation ? 'Phone ready' : hasGeo ? 'GPS only' : 'No GPS');
+    const hasMotion = typeof window.DeviceMotionEvent !== 'undefined';
+    let label = 'No motion sensor';
+    if (!window.isSecureContext && !isLikelyDesktop()) label = 'HTTPS required';
+    else if (state.navigation.motionDataReceived && state.navigation.orientationDataReceived) label = 'Motion + direction live';
+    else if (state.navigation.motionDataReceived) label = 'Motion live';
+    else if (state.navigation.motionListenerActive && state.navigation.orientationListenerActive) label = 'Sensors connected';
+    else if (state.navigation.motionListenerActive) label = 'Motion connected';
+    else if (state.navigation.orientationListenerActive) label = 'Direction only';
+    else if (!isLikelyDesktop() && hasMotion && hasOrientation) label = 'Phone sensors ready';
+    else if (!isLikelyDesktop() && hasMotion) label = 'Motion ready';
+    else if (hasGeo) label = 'GPS fallback';
+    else if (isLikelyDesktop()) label = 'Desktop test';
+
     state.navigation.sensorStatus = label;
     el.sensorStat.textContent = label;
+    if (el.trackingModeBadge) {
+      if (state.navigation.motionDataReceived) {
+        el.trackingModeBadge.textContent = `Live device motion • ${state.navigation.stepCount} steps`;
+      } else if (state.navigation.motionListenerActive) {
+        el.trackingModeBadge.textContent = 'Motion sensor connected';
+      } else if (state.navigation.motionPermission === 'denied') {
+        el.trackingModeBadge.textContent = 'Motion permission denied';
+      } else if (state.navigation.orientationPermission === 'denied') {
+        el.trackingModeBadge.textContent = 'Direction permission denied';
+      } else {
+        el.trackingModeBadge.textContent = !window.isSecureContext && !isLikelyDesktop()
+          ? 'HTTPS required for mobile sensors'
+          : (isAndroidChrome() && hasMotion ? 'Android Chrome sensors ready' : (hasMotion ? 'Device motion ready' : 'GPS/desktop fallback'));
+      }
+    }
+  }
+
+  function clearSensorWatchdog() {
+    if (state.navigation.sensorWatchdogTimer !== null) {
+      clearTimeout(state.navigation.sensorWatchdogTimer);
+      state.navigation.sensorWatchdogTimer = null;
+    }
+  }
+
+  async function requestWakeLock() {
+    if (!state.navigation.active || document.visibilityState !== 'visible') return;
+    if (!window.isSecureContext || !('wakeLock' in navigator)) return;
+    if (state.navigation.wakeLock) return;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      state.navigation.wakeLock = lock;
+      lock.addEventListener('release', () => {
+        if (state.navigation.wakeLock === lock) state.navigation.wakeLock = null;
+      });
+    } catch (error) {
+      console.debug('Screen wake lock unavailable:', error);
+    }
+  }
+
+  async function releaseWakeLock() {
+    const lock = state.navigation.wakeLock;
+    state.navigation.wakeLock = null;
+    if (!lock) return;
+    try {
+      await lock.release();
+    } catch (_) {
+      // It may already have been released automatically by Chrome.
+    }
+  }
+
+  function wireMobileLifecycle() {
+    if (state.lifecycleWired) return;
+    state.lifecycleWired = true;
+
+    document.addEventListener('visibilitychange', () => {
+      if (!state.navigation.active) return;
+      if (document.visibilityState === 'visible') {
+        state.navigation.motionEngine?.resume();
+        requestWakeLock();
+        updateSensorStatus();
+      } else {
+        releaseWakeLock();
+      }
+    });
+
+    window.addEventListener('pageshow', () => {
+      if (!state.navigation.active) return;
+      state.navigation.motionEngine?.resume();
+      requestWakeLock();
+    });
+    window.addEventListener('pagehide', releaseWakeLock);
   }
 
   function setNavigationButtons(active) {
@@ -923,8 +1615,23 @@
 
   function wireControls() {
     el.search.addEventListener('input', () => { renderPlaces(); renderPlaceMarkers(); });
-    el.fromSelect.addEventListener('change', () => { setStartFromPlace(el.fromSelect.value); clearRoute(); });
-    el.toSelect.addEventListener('change', () => { selectPlace(el.toSelect.value, false); clearRoute(); });
+    el.fromSelect.addEventListener('change', () => {
+      if (setStartFromPlace(el.fromSelect.value)) {
+        clearRoute();
+        const place = findPlace(el.fromSelect.value);
+        el.summaryTitle.textContent = `Starting at ${place?.name || 'selected place'}`;
+        el.summaryText.textContent = 'Choose a destination, then request directions.';
+      }
+    });
+    el.toSelect.addEventListener('change', () => {
+      if (el.toSelect.value === state.selectedFrom) {
+        toast('Start and destination must be different.');
+        el.toSelect.value = state.selectedTo || '';
+        return;
+      }
+      selectPlace(el.toSelect.value, false);
+      clearRoute();
+    });
     document.getElementById('routeBtn').addEventListener('click', () => showRoute(true));
     document.getElementById('startNavBtn').addEventListener('click', startDirection);
     document.getElementById('bottomStartBtn').addEventListener('click', startDirection);
@@ -936,11 +1643,36 @@
     document.getElementById('zoomIn').addEventListener('click', () => state.map.zoomIn(0.5));
     document.getElementById('zoomOut').addEventListener('click', () => state.map.zoomOut(0.5));
     document.getElementById('mobileToggle').addEventListener('click', () => el.side.classList.add('open'));
+    el.panelCloseBtn?.addEventListener('click', () => el.side.classList.remove('open'));
+    el.pickStartBtn?.addEventListener('click', beginStartPicking);
     document.getElementById('copyBtn').addEventListener('click', copyLink);
     document.getElementById('swapBtn').addEventListener('click', swapPlaces);
-    document.getElementById('keyboardHintBtn').addEventListener('click', () => toast('Keyboard test: W/↑ forward, S/↓ backward, A/← left, D/→ right. Left/right moves only when a valid road exists.'));
+    document.getElementById('keyboardHintBtn').addEventListener('click', () => toast('Keyboard test: A/D rotate, S turns around, W advances on the road matching the heading.'));
     document.getElementById('graphBtn').addEventListener('click', toggleGraph);
-    document.getElementById('setStartBtn').addEventListener('click', () => toast('With Leaflet engine, select a named start from the Guest is here dropdown for road routing.'));
+    document.getElementById('setStartBtn').addEventListener('click', recalibrateDeviceDirection);
+
+    el.voiceBtn?.addEventListener('click', () => {
+      state.navigation.voiceEnabled = !state.navigation.voiceEnabled;
+      el.voiceBtn.classList.toggle('muted', !state.navigation.voiceEnabled);
+      el.voiceBtn.textContent = state.navigation.voiceEnabled ? '🔊' : '🔇';
+      toast(state.navigation.voiceEnabled ? 'Spoken directions enabled.' : 'Spoken directions muted.');
+    });
+    el.followBtn?.addEventListener('click', () => {
+      state.navigation.followMode = true;
+      el.followBtn.classList.remove('inactive');
+      if (state.navigation.lastAcceptedPoint) state.map.panTo(pointToLatLng(state.navigation.lastAcceptedPoint), {animate: true});
+    });
+    state.map.on('dragstart', () => {
+      if (!state.navigation.active) return;
+      state.navigation.followMode = false;
+      el.followBtn?.classList.add('inactive');
+    });
+    state.map.on('click', event => {
+      if (!state.pickingStart) return;
+      const point = latLngToPoint(event.latlng);
+      const nearest = nearestPlaceToPoint(point);
+      if (nearest) finishStartPicking(nearest.id);
+    });
 
     window.addEventListener('keydown', (event) => {
       if (['ArrowUp', 'w', 'W'].includes(event.key)) { event.preventDefault(); nudgeByKeyboard(0); }
@@ -986,7 +1718,7 @@
     if (now - state.navigation.lastSentAt < 1200 && source !== 'gps_anchor') return;
     state.navigation.lastSentAt = now;
     try {
-      await fetch(apiUrl('/external-guest-map/api/location'), {
+      await fetch(configuredUrl('mapLocationUrl', '/api/guest-map/location'), {
         method: 'POST',
         headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken()},
         body: JSON.stringify({
@@ -1012,14 +1744,143 @@
 
   async function finishNavigation(routeLogId, status) {
     try {
-      await fetch(apiUrl(`/external-guest-map/api/route-log/${routeLogId}/finish`), {
+      await fetch(configuredUrl('mapFinishUrl', '/api/guest-map/navigation/finish'), {
         method: 'POST',
         headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken()},
-        body: JSON.stringify({status}),
+        body: JSON.stringify({route_log_id: routeLogId, status}),
       });
     } catch (error) {
       console.warn(error);
     }
+  }
+
+  function renderGuidancePreview() {
+    if (!state.route) return;
+    const maneuvers = state.route.maneuvers?.length ? state.route.maneuvers : buildClientManeuvers(state.route.path, state.route.from.name, state.route.to.name);
+    const next = maneuvers.find(item => !['depart'].includes(item.type)) || maneuvers[0];
+    el.navGuidance.classList.add('preview');
+    el.maneuverIcon.textContent = maneuverIcon(next?.type || 'depart');
+    el.maneuverDistance.textContent = 'Route ready';
+    el.maneuverText.textContent = next?.instruction || `Head to ${state.route.to.name}`;
+    el.maneuverSubtext.textContent = `${formatDistance(state.route.distance_meters)} • ${state.route.walk_minutes} min walk`;
+  }
+
+  function buildClientManeuvers(path, fromName, toName) {
+    const points = simplifyDuplicatePoints(path || []);
+    if (points.length < 2) return [{type: 'arrive', instruction: `Arrive at ${toName}.`, distance_from_start_meters: 0, point: points[0] || null}];
+    const cumulative = [0];
+    for (let i = 1; i < points.length; i++) cumulative[i] = cumulative[i - 1] + pixelDistance(points[i - 1], points[i]) * metersPerPixel();
+    const maneuvers = [{
+      type: 'depart',
+      instruction: `Head ${bearingWord(bearingBetween(points[0], points[1]))}${fromName ? ` from ${fromName}` : ''}.`,
+      distance_from_start_meters: 0,
+      point: points[0],
+      bearing_after: bearingBetween(points[0], points[1]),
+      turn_degrees: 0,
+    }];
+    const lookAhead = 7;
+    for (let i = 1; i < points.length - 1; i++) {
+      let before = i - 1;
+      while (before > 0 && cumulative[i] - cumulative[before] < lookAhead) before--;
+      let after = i + 1;
+      while (after < points.length - 1 && cumulative[after] - cumulative[i] < lookAhead) after++;
+      const incoming = bearingBetween(points[before], points[i]);
+      const outgoing = bearingBetween(points[i], points[after]);
+      if (!Number.isFinite(incoming) || !Number.isFinite(outgoing)) continue;
+      const turn = signedAngle(outgoing - incoming);
+      const abs = Math.abs(turn);
+      if (abs < 28) continue;
+      const type = abs >= 150 ? 'uturn' : turn >= 70 ? 'turn-right' : turn >= 28 ? 'slight-right' : turn <= -70 ? 'turn-left' : 'slight-left';
+      const instruction = type === 'uturn' ? 'Make a U-turn.' : type === 'turn-right' ? 'Turn right.' : type === 'slight-right' ? 'Keep slightly right.' : type === 'turn-left' ? 'Turn left.' : 'Keep slightly left.';
+      const candidate = {type, instruction, distance_from_start_meters: cumulative[i], point: points[i], bearing_after: outgoing, turn_degrees: turn};
+      const last = maneuvers[maneuvers.length - 1];
+      if (maneuvers.length > 1 && candidate.distance_from_start_meters - last.distance_from_start_meters < 10) {
+        if (Math.abs(candidate.turn_degrees) > Math.abs(last.turn_degrees || 0)) maneuvers[maneuvers.length - 1] = candidate;
+      } else maneuvers.push(candidate);
+    }
+    maneuvers.push({type: 'arrive', instruction: `Arrive at ${toName}.`, distance_from_start_meters: cumulative[cumulative.length - 1], point: points[points.length - 1], bearing_after: null, turn_degrees: 0});
+    return maneuvers;
+  }
+
+  function updateGuidance(path, source) {
+    const maneuvers = state.navigation.currentManeuvers?.length
+      ? state.navigation.currentManeuvers
+      : buildClientManeuvers(path, 'your location', state.route?.to?.name || 'destination');
+    const next = maneuvers.find(item => item.type !== 'depart' && Number(item.distance_from_start_meters) > 2) || maneuvers[maneuvers.length - 1];
+    if (!next) return;
+    const distance = Math.max(0, Number(next.distance_from_start_meters || 0));
+    el.maneuverIcon.textContent = maneuverIcon(next.type);
+    el.maneuverDistance.textContent = next.type === 'arrive' && distance <= 5 ? 'Arriving' : `${formatDistance(distance)} ahead`;
+    el.maneuverText.textContent = next.instruction;
+    el.maneuverSubtext.textContent = `${formatDistance(state.navigation.remainingDistanceMeters || 0)} remaining to ${state.route.to.name}`;
+
+    const threshold = distance <= 5 ? 'now' : distance <= 12 ? '12m' : distance <= 30 ? '30m' : 'far';
+    if (threshold !== 'far') {
+      const spoken = threshold === 'now' ? next.instruction : `In ${formatDistance(distance)}, ${next.instruction.toLowerCase()}`;
+      speakInstruction(spoken, `${next.type}:${threshold}:${Math.round(next.point?.x || 0)}:${Math.round(next.point?.y || 0)}`);
+    }
+  }
+
+  function maneuverIcon(type) {
+    return ({depart: '↑', 'turn-left': '↰', 'turn-right': '↱', 'slight-left': '↖', 'slight-right': '↗', uturn: '⤵', arrive: '✓'}[type] || '↑');
+  }
+
+  function speakInstruction(text, key) {
+    if (!state.navigation.voiceEnabled || !('speechSynthesis' in window) || !text || state.navigation.lastSpokenKey === key) return;
+    state.navigation.lastSpokenKey = key;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      window.speechSynthesis.speak(utterance);
+    } catch (_) {}
+  }
+
+  function setRerouteStatus(status) {
+    if (!el.rerouteBadge) return;
+    el.rerouteBadge.classList.remove('rerouting', 'off-route');
+    if (status === 'rerouting') {
+      el.rerouteBadge.textContent = 'Rerouting';
+      el.rerouteBadge.classList.add('rerouting');
+      setTimeout(() => setRerouteStatus('on-route'), 1600);
+    } else if (status === 'off-route') {
+      el.rerouteBadge.textContent = 'Off mapped path';
+      el.rerouteBadge.classList.add('off-route');
+    } else if (status === 'searching') {
+      el.rerouteBadge.textContent = 'Matching location';
+      el.rerouteBadge.classList.add('rerouting');
+    } else {
+      el.rerouteBadge.textContent = state.navigation.rerouteCount ? `On route • ${state.navigation.rerouteCount} reroute` : 'On route';
+    }
+  }
+
+  function routeSignatureForPath(path) {
+    const points = path || [];
+    if (!points.length) return 'empty';
+    const indexes = [0, Math.floor(points.length / 2), points.length - 1];
+    return indexes.map(index => `${Math.round(points[index].x / 4)}:${Math.round(points[index].y / 4)}`).join('|');
+  }
+
+  function signedAngle(value) {
+    return ((Number(value) + 540) % 360) - 180;
+  }
+
+  function angleDifference(a, b) {
+    return Math.abs(signedAngle(Number(a) - Number(b)));
+  }
+
+  function bearingWord(value) {
+    if (!Number.isFinite(value)) return 'forward';
+    const labels = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
+    return labels[Math.round(normalizeDegrees(value) / 45) % 8];
+  }
+
+  function formatDistance(value) {
+    const meters = Math.max(0, Number(value || 0));
+    if (meters >= 1000) return `${(meters / 1000).toFixed(meters >= 10000 ? 0 : 1)} km`;
+    if (meters >= 100) return `${Math.round(meters / 10) * 10} m`;
+    return `${Math.max(0, Math.round(meters))} m`;
   }
 
   function findPlace(id) {
@@ -1116,6 +1977,14 @@
     return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
   }
 
+  function firstPathBearing(path) {
+    const points = path || [];
+    for (let i = 1; i < points.length; i++) {
+      if (pixelDistance(points[i - 1], points[i]) > 0.01) return bearingBetween(points[i - 1], points[i]);
+    }
+    return null;
+  }
+
   function bearingBetween(a, b) {
     if (!a || !b) return null;
     const dx = Number(b.x) - Number(a.x);
@@ -1143,6 +2012,11 @@
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'}[ch]));
+  }
+
+  function isAndroidChrome() {
+    const ua = navigator.userAgent || '';
+    return /Android/i.test(ua) && /Chrome\//i.test(ua) && !/EdgA|OPR\//i.test(ua);
   }
 
   function isLikelyDesktop() {

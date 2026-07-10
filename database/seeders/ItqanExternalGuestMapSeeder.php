@@ -39,6 +39,7 @@ class ItqanExternalGuestMapSeeder extends Seeder
                 'width' => $data['width'] ?? 2048,
                 'height' => $data['height'] ?? 1100,
                 'meters_per_pixel' => $data['settings']['metersPerPixel'] ?? 0.82,
+                'map_north_rotation_deg' => $data['settings']['mapNorthRotationDeg'] ?? 0,
                 'walk_meters_per_minute' => $data['settings']['walkMetersPerMinute'] ?? 75,
                 'buggy_meters_per_minute' => $data['settings']['buggyMetersPerMinute'] ?? 180,
                 'is_active' => true,
@@ -108,7 +109,7 @@ class ItqanExternalGuestMapSeeder extends Seeder
                         'map_place_id' => $model->id,
                         'title' => $model->name,
                         'qr_code' => $slug,
-                        'qr_url' => '/admin/external-guest-map?from='.$slug,
+                        'qr_url' => '/external-guest-map?from='.$slug,
                         'printed_label' => 'Scan for Palace Guest Map - '.$model->name,
                         'is_active' => true,
                     ]);

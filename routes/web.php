@@ -33,7 +33,8 @@ Route::prefix('external-guest-map')->name('external-guest-map.')->group(function
     Route::get('/api/data', [ItqanGuestMapController::class, 'data'])->name('api.data');
     Route::get('/api/route', [ItqanGuestMapController::class, 'route'])->name('api.route');
     Route::post('/api/location', [ItqanGuestMapController::class, 'trackLocation'])->name('api.location');
-    Route::post('/api/route-log/{routeLog}/finish', [ItqanGuestMapController::class, 'finishNavigation'])->name('api.finish');
+    Route::post('/api/navigation/finish', [ItqanGuestMapController::class, 'finishNavigation'])->name('api.finish');
+    Route::post('/api/route-log/{routeLog}/finish', [ItqanGuestMapController::class, 'finishNavigation'])->name('api.finish.legacy');
 });
 
 Route::prefix('admin')->name('admin.')->group(function (): void {
