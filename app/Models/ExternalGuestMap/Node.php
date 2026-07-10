@@ -11,13 +11,11 @@ class Node extends Model
 
     protected $table = 'ext_guest_map_nodes';
 
-    protected $fillable = ['map_setting_id', 'code', 'name', 'x', 'y', 'lat', 'lng', 'node_type', 'is_active'];
+    protected $fillable = ['map_setting_id', 'code', 'name', 'x', 'y', 'node_type', 'is_active'];
 
     protected $casts = [
         'x' => 'float',
         'y' => 'float',
-        'lat' => 'float',
-        'lng' => 'float',
         'is_active' => 'boolean',
     ];
 

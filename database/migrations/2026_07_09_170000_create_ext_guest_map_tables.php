@@ -96,63 +96,10 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
-
-        Schema::create('ext_guest_map_route_logs', function (Blueprint $table) {
-            $table->id();
-            $table->uuid('session_uuid')->nullable()->index();
-            $table->foreignId('from_place_id')->nullable()->constrained('ext_guest_map_places')->nullOnDelete();
-            $table->foreignId('to_place_id')->nullable()->constrained('ext_guest_map_places')->nullOnDelete();
-            $table->string('from_label')->nullable();
-            $table->string('to_label')->nullable();
-            $table->decimal('start_x', 10, 3)->nullable();
-            $table->decimal('start_y', 10, 3)->nullable();
-            $table->decimal('current_x', 10, 3)->nullable();
-            $table->decimal('current_y', 10, 3)->nullable();
-            $table->decimal('start_lat', 12, 8)->nullable();
-            $table->decimal('start_lng', 12, 8)->nullable();
-            $table->decimal('current_lat', 12, 8)->nullable();
-            $table->decimal('current_lng', 12, 8)->nullable();
-            $table->decimal('accuracy_meters', 8, 2)->nullable();
-            $table->decimal('distance_meters', 10, 2)->nullable();
-            $table->decimal('gps_distance_meters', 10, 2)->default(0);
-            $table->unsignedInteger('walk_minutes')->nullable();
-            $table->unsignedInteger('buggy_minutes')->nullable();
-            $table->json('route_path')->nullable();
-            $table->json('node_path')->nullable();
-            $table->json('steps')->nullable();
-            $table->string('mode')->default('walk');
-            $table->string('status')->default('planned')->index();
-            $table->timestamp('started_at')->nullable();
-            $table->timestamp('ended_at')->nullable();
-            $table->timestamp('last_tracked_at')->nullable();
-            $table->text('user_agent')->nullable();
-            $table->timestamps();
-        });
-
-        Schema::create('ext_guest_map_location_logs', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('map_route_log_id')->nullable()->constrained('ext_guest_map_route_logs')->nullOnDelete();
-            $table->uuid('session_uuid')->nullable()->index();
-            $table->decimal('lat', 12, 8)->nullable();
-            $table->decimal('lng', 12, 8)->nullable();
-            $table->decimal('accuracy_meters', 8, 2)->nullable();
-            $table->decimal('altitude', 10, 2)->nullable();
-            $table->decimal('heading', 8, 2)->nullable();
-            $table->decimal('speed_meters_per_second', 8, 3)->nullable();
-            $table->decimal('map_x', 10, 3)->nullable();
-            $table->decimal('map_y', 10, 3)->nullable();
-            $table->decimal('gps_distance_meters', 10, 2)->default(0);
-            $table->decimal('route_progress_percent', 6, 2)->default(0);
-            $table->string('source')->default('browser_geolocation');
-            $table->text('user_agent')->nullable();
-            $table->timestamps();
-        });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('ext_guest_map_location_logs');
-        Schema::dropIfExists('ext_guest_map_route_logs');
         Schema::dropIfExists('ext_guest_map_qr_points');
         Schema::dropIfExists('ext_guest_map_edges');
         Schema::dropIfExists('ext_guest_map_places');

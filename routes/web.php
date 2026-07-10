@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FooterMenuController;
 use App\Http\Controllers\Admin\HeaderMenuController;
 use App\Http\Controllers\Admin\HomePageController;
+use App\Http\Controllers\Admin\MapAdminController;
 use App\Http\Controllers\Admin\HomeSectionItemController;
 use App\Http\Controllers\Admin\PageContentController;
 use App\Http\Controllers\Admin\PageSectionItemController;
@@ -32,9 +33,6 @@ Route::prefix('external-guest-map')->name('external-guest-map.')->group(function
     Route::get('/', [ItqanGuestMapController::class, 'index'])->name('index');
     Route::get('/api/data', [ItqanGuestMapController::class, 'data'])->name('api.data');
     Route::get('/api/route', [ItqanGuestMapController::class, 'route'])->name('api.route');
-    Route::post('/api/location', [ItqanGuestMapController::class, 'trackLocation'])->name('api.location');
-    Route::post('/api/navigation/finish', [ItqanGuestMapController::class, 'finishNavigation'])->name('api.finish');
-    Route::post('/api/route-log/{routeLog}/finish', [ItqanGuestMapController::class, 'finishNavigation'])->name('api.finish.legacy');
 });
 
 Route::prefix('admin')->name('admin.')->group(function (): void {
@@ -45,6 +43,24 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
     Route::middleware(EnsureAdminAuthenticated::class)->group(function (): void {
         Route::post('/logout', [AdminLoginController::class, 'destroy'])->name('logout');
         Route::get('/', DashboardController::class)->name('dashboard');
+
+
+        Route::prefix('map')->name('map.')->group(function (): void {
+            Route::get('/', [MapAdminController::class, 'dashboard'])->name('dashboard');
+            Route::post('/reset-seed', [MapAdminController::class, 'resetSeed'])->name('reset-seed');
+            Route::get('/settings', [MapAdminController::class, 'settings'])->name('settings');
+            Route::put('/settings', [MapAdminController::class, 'updateSettings'])->name('settings.update');
+            Route::get('/places', [MapAdminController::class, 'places'])->name('places');
+            Route::post('/places', [MapAdminController::class, 'storePlace'])->name('places.store');
+            Route::put('/places/{place}', [MapAdminController::class, 'updatePlace'])->name('places.update');
+            Route::get('/nodes', [MapAdminController::class, 'nodes'])->name('nodes');
+            Route::post('/nodes', [MapAdminController::class, 'storeNode'])->name('nodes.store');
+            Route::put('/nodes/{node}', [MapAdminController::class, 'updateNode'])->name('nodes.update');
+            Route::get('/edges', [MapAdminController::class, 'edges'])->name('edges');
+            Route::post('/edges', [MapAdminController::class, 'storeEdge'])->name('edges.store');
+            Route::put('/edges/{edge}', [MapAdminController::class, 'updateEdge'])->name('edges.update');
+            Route::get('/preview', [MapAdminController::class, 'preview'])->name('preview');
+        });
 
 
         Route::get('/site-settings', [SiteSettingController::class, 'edit'])->name('site-settings.edit');

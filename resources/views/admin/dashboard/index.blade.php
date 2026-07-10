@@ -21,5 +21,10 @@
     <h3>Contact Responses</h3>
     <p>{{ $unreadContactResponses }} unread message(s) from the public contact form.</p>
   </a>
+  <a class="card" href="{{ route('admin.map.dashboard') }}">
+    <div class="metric">{{ $guestMapPlaces }}</div>
+    <h3>Resort Guest Map</h3>
+    <p>{{ $guestMapPaths }} saved curved path connection(s). Manage places, vertices, pathways, and the illustrated map.</p>
+  </a>
 </div>
 @endsection

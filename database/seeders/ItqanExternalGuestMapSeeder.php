@@ -2,12 +2,12 @@
 
 namespace Database\Seeders;
 
-use App\Models\ExternalGuestMap\Category;
-use App\Models\ExternalGuestMap\Edge;
-use App\Models\ExternalGuestMap\Node;
-use App\Models\ExternalGuestMap\Place;
-use App\Models\ExternalGuestMap\QrPoint;
-use App\Models\ExternalGuestMap\Setting;
+use App\Models\ExternalGuestMap\Category as MapCategory;
+use App\Models\ExternalGuestMap\Edge as MapEdge;
+use App\Models\ExternalGuestMap\Node as MapNode;
+use App\Models\ExternalGuestMap\Place as MapPlace;
+use App\Models\ExternalGuestMap\QrPoint as MapQrPoint;
+use App\Models\ExternalGuestMap\Setting as MapSetting;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -25,21 +25,20 @@ class ItqanExternalGuestMapSeeder extends Seeder
         $data = json_decode(file_get_contents($jsonPath), true, 512, JSON_THROW_ON_ERROR);
 
         DB::transaction(function () use ($data) {
-            QrPoint::query()->delete();
-            Edge::query()->delete();
-            Place::query()->delete();
-            Node::query()->delete();
-            Category::query()->delete();
-            Setting::query()->delete();
+            MapQrPoint::query()->delete();
+            MapEdge::query()->delete();
+            MapPlace::query()->delete();
+            MapNode::query()->delete();
+            MapCategory::query()->delete();
+            MapSetting::query()->delete();
 
-            $setting = Setting::create([
-                'name' => 'Itqan External Palace Guest Map Test',
+            $setting = MapSetting::create([
+                'name' => 'The Palace Luxury Resort Guest Map',
                 'map_type' => 'template_svg',
                 'map_file' => null,
                 'width' => $data['width'] ?? 2048,
                 'height' => $data['height'] ?? 1100,
                 'meters_per_pixel' => $data['settings']['metersPerPixel'] ?? 0.82,
-                'map_north_rotation_deg' => $data['settings']['mapNorthRotationDeg'] ?? 0,
                 'walk_meters_per_minute' => $data['settings']['walkMetersPerMinute'] ?? 75,
                 'buggy_meters_per_minute' => $data['settings']['buggyMetersPerMinute'] ?? 180,
                 'is_active' => true,
@@ -59,7 +58,7 @@ class ItqanExternalGuestMapSeeder extends Seeder
                 if (($cat['id'] ?? '') === 'all') {
                     continue;
                 }
-                $categories[$cat['id']] = Category::create([
+                $categories[$cat['id']] = MapCategory::create([
                     'name' => $cat['name'],
                     'slug' => $cat['id'],
                     'icon' => null,
@@ -71,7 +70,7 @@ class ItqanExternalGuestMapSeeder extends Seeder
 
             $nodes = [];
             foreach ($data['nodes'] ?? [] as $code => $node) {
-                $nodes[$code] = Node::create([
+                $nodes[$code] = MapNode::create([
                     'map_setting_id' => $setting->id,
                     'code' => $code,
                     'name' => $node['label'] ?? Str::headline($code),
@@ -87,7 +86,7 @@ class ItqanExternalGuestMapSeeder extends Seeder
                 $node = $nodes[$place['routeNode']] ?? null;
                 $slug = $place['id'];
 
-                $model = Place::create([
+                $model = MapPlace::create([
                     'map_setting_id' => $setting->id,
                     'map_category_id' => $category?->id,
                     'map_node_id' => $node?->id,
@@ -105,7 +104,7 @@ class ItqanExternalGuestMapSeeder extends Seeder
                 ]);
 
                 if ($model->is_qr_point) {
-                    QrPoint::create([
+                    MapQrPoint::create([
                         'map_place_id' => $model->id,
                         'title' => $model->name,
                         'qr_code' => $slug,
@@ -129,7 +128,7 @@ class ItqanExternalGuestMapSeeder extends Seeder
                     ->values()
                     ->all();
 
-                Edge::create([
+                MapEdge::create([
                     'map_setting_id' => $setting->id,
                     'from_node_id' => $from->id,
                     'to_node_id' => $to->id,

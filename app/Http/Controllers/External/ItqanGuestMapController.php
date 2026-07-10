@@ -4,13 +4,10 @@ namespace App\Http\Controllers\External;
 
 use App\Http\Controllers\Controller;
 use App\Models\ExternalGuestMap\Edge;
-use App\Models\ExternalGuestMap\LocationLog;
 use App\Models\ExternalGuestMap\Place;
-use App\Models\ExternalGuestMap\RouteLog;
 use App\Models\ExternalGuestMap\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class ItqanGuestMapController extends Controller
 {
@@ -25,53 +22,23 @@ class ItqanGuestMapController extends Controller
     public function data(): JsonResponse
     {
         $map = $this->activeMap();
-        $placeCalibration = $map->places()
-            ->whereNotNull('lat')
-            ->whereNotNull('lng')
-            ->get(['slug', 'name', 'x', 'y', 'lat', 'lng'])
-            ->map(fn ($place) => [
-                'id' => 'place:'.$place->slug,
-                'name' => $place->name,
-                'x' => (float) $place->x,
-                'y' => (float) $place->y,
-                'lat' => (float) $place->lat,
-                'lng' => (float) $place->lng,
-            ]);
-        $nodeCalibration = $map->nodes()
-            ->whereNotNull('lat')
-            ->whereNotNull('lng')
-            ->get(['code', 'name', 'x', 'y', 'lat', 'lng'])
-            ->map(fn ($node) => [
-                'id' => 'node:'.$node->code,
-                'name' => $node->name,
-                'x' => (float) $node->x,
-                'y' => (float) $node->y,
-                'lat' => (float) $node->lat,
-                'lng' => (float) $node->lng,
-            ]);
-        $calibrationPoints = $placeCalibration->concat($nodeCalibration)->values();
-        $trackingMode = $calibrationPoints->count() >= 2
-            ? 'absolute_georeferenced'
-            : 'anchored_relative';
+        $mapImage = $map->map_file ?: 'assets/itqan-external-guest-map/template-map.svg';
 
         return response()->json([
             'map' => [
                 'id' => $map->id,
                 'name' => $map->name,
                 'type' => $map->map_type,
-                'image' => $map->map_file ? asset($map->map_file) : null,
-                'width' => $map->width,
-                'height' => $map->height,
-                'meters_per_pixel' => $map->meters_per_pixel,
-                'map_north_rotation_deg' => $map->map_north_rotation_deg,
-                'walk_meters_per_minute' => $map->walk_meters_per_minute,
-                'buggy_meters_per_minute' => $map->buggy_meters_per_minute,
-                'tracking_mode' => $trackingMode,
-                'georeferenced' => $calibrationPoints->count() >= 2,
-                'calibration_points' => $calibrationPoints,
+                'image' => asset($mapImage),
+                'width' => (int) $map->width,
+                'height' => (int) $map->height,
+                'meters_per_pixel' => (float) $map->meters_per_pixel,
+                'walk_meters_per_minute' => (int) $map->walk_meters_per_minute,
+                'buggy_meters_per_minute' => (int) $map->buggy_meters_per_minute,
             ],
             'categories' => $map->places()
                 ->with('category')
+                ->where('is_active', true)
                 ->get()
                 ->pluck('category')
                 ->filter()
@@ -88,6 +55,7 @@ class ItqanGuestMapController extends Controller
                 ->with(['category', 'routeNode'])
                 ->where('is_active', true)
                 ->orderBy('sort_order')
+                ->orderBy('name')
                 ->get()
                 ->map(fn ($place) => [
                     'id' => $place->slug,
@@ -97,14 +65,11 @@ class ItqanGuestMapController extends Controller
                     'category' => $place->category?->slug,
                     'category_name' => $place->category?->name,
                     'color' => $place->category?->color ?? '#1f6b4b',
-                    'icon' => $place->icon,
+                    'icon' => $place->icon ?: '📍',
                     'pin_number' => $place->pin_number,
-                    'x' => $place->x,
-                    'y' => $place->y,
-                    'lat' => $place->lat,
-                    'lng' => $place->lng,
+                    'x' => (float) $place->x,
+                    'y' => (float) $place->y,
                     'route_node_code' => $place->routeNode?->code,
-                    'is_qr_point' => $place->is_qr_point,
                 ]),
             'nodes' => $map->nodes()
                 ->where('is_active', true)
@@ -112,215 +77,115 @@ class ItqanGuestMapController extends Controller
                 ->mapWithKeys(fn ($node) => [$node->code => [
                     'id' => $node->id,
                     'name' => $node->name,
-                    'x' => $node->x,
-                    'y' => $node->y,
-                    'lat' => $node->lat,
-                    'lng' => $node->lng,
+                    'x' => (float) $node->x,
+                    'y' => (float) $node->y,
                     'node_type' => $node->node_type,
                 ]]),
             'edges' => $map->edges()
                 ->with(['fromNode', 'toNode'])
                 ->where('is_active', true)
+                ->where('staff_only', false)
+                ->orderBy('sort_order')
                 ->get()
+                ->filter(fn ($edge) => $edge->fromNode && $edge->toNode)
                 ->map(fn ($edge) => [
                     'id' => $edge->id,
-                    'from' => $edge->fromNode?->code,
-                    'to' => $edge->toNode?->code,
-                    'path_points' => $edge->path_points ?? [],
+                    'from' => $edge->fromNode->code,
+                    'to' => $edge->toNode->code,
+                    'path_points' => $this->normalizedEdgePoints($edge),
                     'distance_meters' => round($this->edgeDistanceMeters($edge, $map), 1),
-                    'walk_enabled' => $edge->walk_enabled,
-                    'buggy_enabled' => $edge->buggy_enabled,
-                    'staff_only' => $edge->staff_only,
-                ]),
+                    'walk_enabled' => (bool) $edge->walk_enabled,
+                    'buggy_enabled' => (bool) $edge->buggy_enabled,
+                ])
+                ->values(),
         ]);
     }
 
     public function route(Request $request): JsonResponse
     {
-        $request->validate([
+        $data = $request->validate([
             'from' => ['required', 'string'],
             'to' => ['required', 'string'],
             'mode' => ['nullable', 'in:walk,buggy'],
         ]);
 
         $map = $this->activeMap();
-        $mode = $request->query('mode', 'walk');
-        $fromPlace = Place::query()
+        $mode = $data['mode'] ?? 'walk';
+        $places = Place::query()
             ->where('map_setting_id', $map->id)
-            ->where('slug', $request->query('from'))
+            ->whereIn('slug', [$data['from'], $data['to']])
             ->where('is_active', true)
             ->with('routeNode')
-            ->first();
-        $toPlace = Place::query()
-            ->where('map_setting_id', $map->id)
-            ->where('slug', $request->query('to'))
-            ->where('is_active', true)
-            ->with('routeNode')
-            ->first();
+            ->get()
+            ->keyBy('slug');
+
+        $fromPlace = $places->get($data['from']);
+        $toPlace = $places->get($data['to']);
 
         if (! $fromPlace || ! $toPlace) {
             return response()->json(['message' => 'Start or destination place was not found.'], 404);
         }
 
         if (! $fromPlace->routeNode || ! $toPlace->routeNode) {
-            return response()->json(['message' => 'Start or destination is not attached to a route node.'], 422);
+            return response()->json(['message' => 'Start or destination is not attached to the saved path network.'], 422);
         }
 
-        $result = $this->shortestPath($map, $fromPlace->routeNode->id, $toPlace->routeNode->id, $mode);
-
-        if (! $result) {
-            return response()->json(['message' => 'No available route for this mode.'], 404);
-        }
-
-        $path = $this->withPlaceEndpoints($result['path_points'], $fromPlace, $toPlace);
-        $distance = round($result['distance_meters']);
-        $walkMinutes = max(1, (int) ceil($distance / max(1, $map->walk_meters_per_minute)));
-        $buggyMinutes = max(1, (int) ceil($distance / max(1, $map->buggy_meters_per_minute)));
-        $maneuvers = $this->maneuvers($path, $fromPlace->name, $toPlace->name, $map);
-        $steps = $this->steps($maneuvers, $walkMinutes);
-
-        $routeLog = RouteLog::create([
-            'session_uuid' => (string) Str::uuid(),
-            'from_place_id' => $fromPlace->id,
-            'to_place_id' => $toPlace->id,
-            'from_label' => $fromPlace->name,
-            'to_label' => $toPlace->name,
-            'start_x' => $fromPlace->x,
-            'start_y' => $fromPlace->y,
-            'current_x' => $fromPlace->x,
-            'current_y' => $fromPlace->y,
-            'distance_meters' => $distance,
-            'gps_distance_meters' => 0,
-            'walk_minutes' => $walkMinutes,
-            'buggy_minutes' => $buggyMinutes,
-            'route_path' => $path,
-            'node_path' => $result['node_codes'],
-            'steps' => $steps,
-            'mode' => $mode,
-            'status' => 'planned',
-            'user_agent' => substr((string) $request->userAgent(), 0, 255),
-        ]);
-
-        return response()->json([
-            'route_log_id' => $routeLog->id,
-            'session_uuid' => $routeLog->session_uuid,
-            'from' => [
-                'id' => $fromPlace->slug,
-                'name' => $fromPlace->name,
-                'x' => $fromPlace->x,
-                'y' => $fromPlace->y,
-            ],
-            'to' => [
-                'id' => $toPlace->slug,
-                'name' => $toPlace->name,
-                'x' => $toPlace->x,
-                'y' => $toPlace->y,
-            ],
-            'mode' => $mode,
-            'distance_meters' => $distance,
-            'walk_minutes' => $walkMinutes,
-            'buggy_minutes' => $buggyMinutes,
-            'path' => $path,
-            'distance_source' => 'saved_edge_distance_or_map_scale',
-            'node_path' => $result['node_codes'],
-            'steps' => $steps,
-            'maneuvers' => $maneuvers,
-            'tracking_mode' => ($map->places()->whereNotNull('lat')->whereNotNull('lng')->count()
-                + $map->nodes()->whereNotNull('lat')->whereNotNull('lng')->count()) >= 2
-                    ? 'absolute_georeferenced'
-                    : 'anchored_relative',
-        ]);
-    }
-
-    public function trackLocation(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'route_log_id' => ['nullable', 'integer', 'exists:ext_guest_map_route_logs,id'],
-            'session_uuid' => ['nullable', 'string', 'max:80'],
-            'lat' => ['nullable', 'numeric'],
-            'lng' => ['nullable', 'numeric'],
-            'accuracy_meters' => ['nullable', 'numeric', 'min:0'],
-            'altitude' => ['nullable', 'numeric'],
-            'heading' => ['nullable', 'numeric'],
-            'speed_meters_per_second' => ['nullable', 'numeric'],
-            'map_x' => ['nullable', 'numeric'],
-            'map_y' => ['nullable', 'numeric'],
-            'gps_distance_meters' => ['nullable', 'numeric', 'min:0'],
-            'route_progress_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'source' => ['nullable', 'string', 'max:50'],
-        ]);
-
-        $routeLog = null;
-        if (! empty($data['route_log_id'])) {
-            $routeLog = RouteLog::find($data['route_log_id']);
-        }
-
-        $sample = LocationLog::create([
-            'map_route_log_id' => $routeLog?->id,
-            'session_uuid' => $data['session_uuid'] ?? $routeLog?->session_uuid,
-            'lat' => $data['lat'] ?? null,
-            'lng' => $data['lng'] ?? null,
-            'accuracy_meters' => $data['accuracy_meters'] ?? null,
-            'altitude' => $data['altitude'] ?? null,
-            'heading' => $data['heading'] ?? null,
-            'speed_meters_per_second' => $data['speed_meters_per_second'] ?? null,
-            'map_x' => $data['map_x'] ?? null,
-            'map_y' => $data['map_y'] ?? null,
-            'gps_distance_meters' => $data['gps_distance_meters'] ?? 0,
-            'route_progress_percent' => $data['route_progress_percent'] ?? 0,
-            'source' => $data['source'] ?? 'browser_geolocation',
-            'user_agent' => substr((string) $request->userAgent(), 0, 1000),
-        ]);
-
-        if ($routeLog) {
-            $status = ((float) ($data['route_progress_percent'] ?? 0)) >= 99 ? 'arrived' : 'active';
-            $routeLog->update([
-                'current_x' => $data['map_x'] ?? $routeLog->current_x,
-                'current_y' => $data['map_y'] ?? $routeLog->current_y,
-                'start_lat' => $routeLog->start_lat ?? ($data['lat'] ?? null),
-                'start_lng' => $routeLog->start_lng ?? ($data['lng'] ?? null),
-                'current_lat' => $data['lat'] ?? $routeLog->current_lat,
-                'current_lng' => $data['lng'] ?? $routeLog->current_lng,
-                'accuracy_meters' => $data['accuracy_meters'] ?? $routeLog->accuracy_meters,
-                'gps_distance_meters' => $data['gps_distance_meters'] ?? $routeLog->gps_distance_meters,
-                'status' => $status,
-                'started_at' => $routeLog->started_at ?? now(),
-                'ended_at' => $status === 'arrived' ? now() : $routeLog->ended_at,
-                'last_tracked_at' => now(),
+        if ($fromPlace->id === $toPlace->id) {
+            return response()->json([
+                'from' => $this->placePayload($fromPlace),
+                'to' => $this->placePayload($toPlace),
+                'mode' => $mode,
+                'distance_meters' => 0,
+                'walk_minutes' => 0,
+                'buggy_minutes' => 0,
+                'path' => [['x' => (float) $fromPlace->x, 'y' => (float) $fromPlace->y]],
+                'node_path' => [$fromPlace->routeNode->code],
+                'edge_path' => [],
             ]);
         }
 
-        return response()->json([
-            'ok' => true,
-            'sample_id' => $sample->id,
-            'route_status' => $routeLog?->fresh()?->status,
-        ]);
-    }
-
-    public function finishNavigation(Request $request, ?int $routeLog = null): JsonResponse
-    {
-        if ($routeLog !== null && ! $request->filled('route_log_id')) {
-            $request->merge(['route_log_id' => $routeLog]);
+        $result = $this->shortestPath($map, $fromPlace->routeNode->id, $toPlace->routeNode->id, $mode);
+        if (! $result) {
+            return response()->json(['message' => 'No saved path connects these places.'], 404);
         }
 
-        $data = $request->validate([
-            'route_log_id' => ['required', 'integer', 'exists:ext_guest_map_route_logs,id'],
-            'status' => ['nullable', 'in:stopped,arrived,cancelled'],
-        ]);
+        $path = $this->withPlaceEndpoints($result['path_points'], $fromPlace, $toPlace);
+        $networkPath = $result['path_points'];
+        $networkStart = $networkPath[0] ?? $path[0];
+        $networkEnd = $networkPath ? $networkPath[count($networkPath) - 1] : $path[count($path) - 1];
+        $pathEnd = $path[count($path) - 1];
+        $connectorDistance = (
+            $this->pointDistance($path[0], $networkStart)
+            + $this->pointDistance($networkEnd, $pathEnd)
+        ) * max(0.0001, (float) $map->meters_per_pixel);
+        $distance = max(0, (int) round($result['distance_meters'] + $connectorDistance));
 
-        $routeLog = RouteLog::findOrFail($data['route_log_id']);
-        $routeLog->update([
-            'status' => $data['status'] ?? 'stopped',
-            'ended_at' => now(),
-            'last_tracked_at' => now(),
+        return response()->json([
+            'from' => $this->placePayload($fromPlace),
+            'to' => $this->placePayload($toPlace),
+            'mode' => $mode,
+            'distance_meters' => $distance,
+            'walk_minutes' => $distance === 0 ? 0 : max(1, (int) ceil($distance / max(1, $map->walk_meters_per_minute))),
+            'buggy_minutes' => $distance === 0 ? 0 : max(1, (int) ceil($distance / max(1, $map->buggy_meters_per_minute))),
+            'path' => $path,
+            'node_path' => $result['node_codes'],
+            'edge_path' => $result['edge_ids'],
         ]);
-
-        return response()->json(['ok' => true, 'status' => $routeLog->fresh()->status]);
     }
 
     private function activeMap(): Setting
     {
         return Setting::query()->where('is_active', true)->firstOrFail();
+    }
+
+    private function placePayload(Place $place): array
+    {
+        return [
+            'id' => $place->slug,
+            'name' => $place->name,
+            'x' => (float) $place->x,
+            'y' => (float) $place->y,
+        ];
     }
 
     private function shortestPath(Setting $map, int $startNodeId, int $endNodeId, string $mode): ?array
@@ -331,297 +196,196 @@ class ItqanGuestMapController extends Controller
             ->where('staff_only', false)
             ->where($mode === 'buggy' ? 'buggy_enabled' : 'walk_enabled', true)
             ->with(['fromNode', 'toNode'])
-            ->get();
+            ->get()
+            ->filter(fn ($edge) => $edge->fromNode && $edge->toNode);
 
-        $adj = [];
+        $adjacency = [];
         foreach ($edges as $edge) {
-            $a = $edge->from_node_id;
-            $b = $edge->to_node_id;
-            $w = $this->edgeDistanceMeters($edge, $map);
-            $adj[$a][] = ['id' => $b, 'edge' => $edge, 'weight' => $w, 'reverse' => false];
-            $adj[$b][] = ['id' => $a, 'edge' => $edge, 'weight' => $w, 'reverse' => true];
+            $weight = $this->edgeDistanceMeters($edge, $map);
+            $adjacency[$edge->from_node_id][] = [
+                'node' => $edge->to_node_id,
+                'edge' => $edge,
+                'reverse' => false,
+                'weight' => $weight,
+            ];
+            $adjacency[$edge->to_node_id][] = [
+                'node' => $edge->from_node_id,
+                'edge' => $edge,
+                'reverse' => true,
+                'weight' => $weight,
+            ];
         }
 
-        $dist = [$startNodeId => 0.0];
-        $prev = [];
-        $visited = [];
+        $distances = [$startNodeId => 0.0];
+        $previous = [];
         $queue = [$startNodeId => 0.0];
+        $visited = [];
 
-        while (! empty($queue)) {
-            asort($queue);
-            $current = array_key_first($queue);
+        while ($queue) {
+            asort($queue, SORT_NUMERIC);
+            $current = (int) array_key_first($queue);
             unset($queue[$current]);
 
             if (isset($visited[$current])) {
                 continue;
             }
-
             $visited[$current] = true;
 
             if ($current === $endNodeId) {
                 break;
             }
 
-            foreach ($adj[$current] ?? [] as $neighbor) {
-                $next = $neighbor['id'];
-                $newDistance = ($dist[$current] ?? INF) + $neighbor['weight'];
-                if ($newDistance < ($dist[$next] ?? INF)) {
-                    $dist[$next] = $newDistance;
-                    $prev[$next] = [
-                        'node' => $current,
-                        'edge' => $neighbor['edge'],
-                        'reverse' => $neighbor['reverse'],
+            foreach ($adjacency[$current] ?? [] as $candidate) {
+                $next = (int) $candidate['node'];
+                $newDistance = $distances[$current] + $candidate['weight'];
+                if ($newDistance < ($distances[$next] ?? INF)) {
+                    $distances[$next] = $newDistance;
+                    $previous[$next] = [
+                        'previous_node' => $current,
+                        'edge' => $candidate['edge'],
+                        'reverse' => $candidate['reverse'],
                     ];
                     $queue[$next] = $newDistance;
                 }
             }
         }
 
-        if (! isset($dist[$endNodeId])) {
+        if (! array_key_exists($endNodeId, $distances)) {
             return null;
         }
 
         $segments = [];
+        $nodeIds = [$endNodeId];
         $cursor = $endNodeId;
         while ($cursor !== $startNodeId) {
-            if (! isset($prev[$cursor])) {
+            if (! isset($previous[$cursor])) {
                 return null;
             }
-            $segments[] = $prev[$cursor];
-            $cursor = $prev[$cursor]['node'];
+            $segments[] = $previous[$cursor];
+            $cursor = (int) $previous[$cursor]['previous_node'];
+            $nodeIds[] = $cursor;
         }
-
         $segments = array_reverse($segments);
-        $pathPoints = [];
-        $nodeCodes = [];
-        $nodeLabels = [];
+        $nodeIds = array_reverse($nodeIds);
 
+        $path = [];
+        $edgeIds = [];
         foreach ($segments as $segment) {
             /** @var Edge $edge */
             $edge = $segment['edge'];
-            $points = $edge->path_points ?: [
-                ['x' => $edge->fromNode->x, 'y' => $edge->fromNode->y],
-                ['x' => $edge->toNode->x, 'y' => $edge->toNode->y],
-            ];
-
+            $points = $this->normalizedEdgePoints($edge);
             if ($segment['reverse']) {
                 $points = array_reverse($points);
             }
-
-            foreach ($points as $point) {
-                $last = end($pathPoints);
-                $current = ['x' => (float) $point['x'], 'y' => (float) $point['y']];
-                if ($last && abs($last['x'] - $current['x']) < 0.001 && abs($last['y'] - $current['y']) < 0.001) {
-                    continue;
-                }
-                $pathPoints[] = $current;
-            }
-
-            $nodeCodes[] = $edge->fromNode->code;
-            $nodeCodes[] = $edge->toNode->code;
-            $nodeLabels[] = $edge->fromNode->name;
-            $nodeLabels[] = $edge->toNode->name;
+            $path = $this->appendPath($path, $points);
+            $edgeIds[] = $edge->id;
         }
+
+        $nodesById = $map->nodes()->whereIn('id', $nodeIds)->get()->keyBy('id');
 
         return [
-            'distance_meters' => $dist[$endNodeId],
-            'path_points' => $pathPoints,
-            'node_codes' => array_values(array_unique($nodeCodes)),
-            'node_labels' => array_values(array_unique($nodeLabels)),
+            'distance_meters' => (float) $distances[$endNodeId],
+            'path_points' => $path,
+            'node_codes' => array_values(array_filter(array_map(
+                fn ($id) => $nodesById->get($id)?->code,
+                $nodeIds,
+            ))),
+            'edge_ids' => $edgeIds,
         ];
     }
 
-    private function withPlaceEndpoints(array $pathPoints, Place $fromPlace, Place $toPlace): array
+    private function normalizedEdgePoints(Edge $edge): array
     {
-        $points = $pathPoints;
-        $from = ['x' => (float) $fromPlace->x, 'y' => (float) $fromPlace->y];
-        $to = ['x' => (float) $toPlace->x, 'y' => (float) $toPlace->y];
-
-        if (empty($points) || $this->pointDistance($from, $points[0]) > 0.001) {
-            array_unshift($points, $from);
-        }
-
-        $last = end($points);
-        if (! $last || $this->pointDistance($to, $last) > 0.001) {
-            $points[] = $to;
-        }
-
-        return $points;
-    }
-
-    private function edgeDistanceMeters(Edge $edge, Setting $map): float
-    {
-        if ($edge->distance_meters) {
-            return (float) $edge->distance_meters;
-        }
-
-        $points = $edge->path_points ?: [
-            ['x' => $edge->fromNode?->x ?? 0, 'y' => $edge->fromNode?->y ?? 0],
-            ['x' => $edge->toNode?->x ?? 0, 'y' => $edge->toNode?->y ?? 0],
-        ];
-        $distance = 0.0;
-        for ($i = 1; $i < count($points); $i++) {
-            $distance += $this->pointDistance($points[$i - 1], $points[$i]);
-        }
-
-        return $distance * (float) $map->meters_per_pixel;
-    }
-
-    private function pointDistance(array $a, array $b): float
-    {
-        $dx = ((float) ($a['x'] ?? 0)) - ((float) ($b['x'] ?? 0));
-        $dy = ((float) ($a['y'] ?? 0)) - ((float) ($b['y'] ?? 0));
-
-        return sqrt($dx * $dx + $dy * $dy);
-    }
-
-    private function maneuvers(array $path, string $from, string $to, Setting $map): array
-    {
+        $from = ['x' => (float) $edge->fromNode->x, 'y' => (float) $edge->fromNode->y];
+        $to = ['x' => (float) $edge->toNode->x, 'y' => (float) $edge->toNode->y];
+        $raw = is_array($edge->path_points) ? $edge->path_points : [];
         $points = [];
-        foreach ($path as $point) {
-            $candidate = ['x' => (float) ($point['x'] ?? 0), 'y' => (float) ($point['y'] ?? 0)];
-            $last = end($points);
-            if (! $last || $this->pointDistance($last, $candidate) > 0.01) {
+
+        foreach ($raw as $point) {
+            if (! is_array($point) || ! isset($point['x'], $point['y']) || ! is_numeric($point['x']) || ! is_numeric($point['y'])) {
+                continue;
+            }
+            $candidate = ['x' => (float) $point['x'], 'y' => (float) $point['y']];
+            if (! $points || $this->pointDistance(end($points), $candidate) > 0.01) {
                 $points[] = $candidate;
             }
         }
 
         if (count($points) < 2) {
-            return [[
-                'type' => 'arrive',
-                'instruction' => "Arrive at {$to}.",
-                'distance_from_start_meters' => 0,
-                'distance_to_next_meters' => 0,
-                'point' => $points[0] ?? ['x' => 0, 'y' => 0],
-                'bearing_after' => null,
-            ]];
+            return [$from, $to];
         }
 
-        $metersPerPixel = max(0.0001, (float) $map->meters_per_pixel);
-        $cumulative = [0.0];
+        $points[0] = $from;
+        $points[count($points) - 1] = $to;
+
+        return $this->deduplicatePoints($points);
+    }
+
+    private function appendPath(array $base, array $addition): array
+    {
+        foreach ($addition as $point) {
+            $candidate = ['x' => (float) $point['x'], 'y' => (float) $point['y']];
+            if (! $base || $this->pointDistance(end($base), $candidate) > 0.01) {
+                $base[] = $candidate;
+            }
+        }
+
+        return $base;
+    }
+
+    private function withPlaceEndpoints(array $path, Place $fromPlace, Place $toPlace): array
+    {
+        $from = ['x' => (float) $fromPlace->x, 'y' => (float) $fromPlace->y];
+        $to = ['x' => (float) $toPlace->x, 'y' => (float) $toPlace->y];
+        $points = $this->deduplicatePoints($path);
+
+        if (! $points) {
+            return $this->deduplicatePoints([$from, $to]);
+        }
+
+        if ($this->pointDistance($from, $points[0]) > 0.01) {
+            array_unshift($points, $from);
+        }
+        if ($this->pointDistance($to, end($points)) > 0.01) {
+            $points[] = $to;
+        }
+
+        return $this->deduplicatePoints($points);
+    }
+
+    private function deduplicatePoints(array $points): array
+    {
+        $clean = [];
+        foreach ($points as $point) {
+            $candidate = ['x' => (float) $point['x'], 'y' => (float) $point['y']];
+            if (! $clean || $this->pointDistance(end($clean), $candidate) > 0.01) {
+                $clean[] = $candidate;
+            }
+        }
+
+        return $clean;
+    }
+
+    private function edgeDistanceMeters(Edge $edge, Setting $map): float
+    {
+        if ($edge->distance_meters !== null && (float) $edge->distance_meters > 0) {
+            return (float) $edge->distance_meters;
+        }
+
+        $points = $this->normalizedEdgePoints($edge);
+        $pixels = 0.0;
         for ($i = 1; $i < count($points); $i++) {
-            $cumulative[$i] = $cumulative[$i - 1] + $this->pointDistance($points[$i - 1], $points[$i]) * $metersPerPixel;
+            $pixels += $this->pointDistance($points[$i - 1], $points[$i]);
         }
 
-        $initialBearing = $this->mapBearing($points[0], $points[1]);
-        $maneuvers = [[
-            'type' => 'depart',
-            'instruction' => 'Head '.$this->bearingLabel($initialBearing).' from '.$from.'.',
-            'distance_from_start_meters' => 0,
-            'point' => $points[0],
-            'bearing_after' => round($initialBearing, 1),
-            'turn_degrees' => 0,
-        ]];
-
-        $lookAheadMeters = 7.0;
-        $minimumTurnDegrees = 28.0;
-        $minimumSpacingMeters = 10.0;
-
-        for ($i = 1; $i < count($points) - 1; $i++) {
-            $before = $i - 1;
-            while ($before > 0 && ($cumulative[$i] - $cumulative[$before]) < $lookAheadMeters) {
-                $before--;
-            }
-            $after = $i + 1;
-            while ($after < count($points) - 1 && ($cumulative[$after] - $cumulative[$i]) < $lookAheadMeters) {
-                $after++;
-            }
-
-            $incoming = $this->mapBearing($points[$before], $points[$i]);
-            $outgoing = $this->mapBearing($points[$i], $points[$after]);
-            $turn = $this->signedAngle($outgoing - $incoming);
-            $absoluteTurn = abs($turn);
-            if ($absoluteTurn < $minimumTurnDegrees) {
-                continue;
-            }
-
-            $type = match (true) {
-                $absoluteTurn >= 150 => 'uturn',
-                $turn >= 70 => 'turn-right',
-                $turn >= $minimumTurnDegrees => 'slight-right',
-                $turn <= -70 => 'turn-left',
-                default => 'slight-left',
-            };
-            $instruction = match ($type) {
-                'uturn' => 'Make a U-turn.',
-                'turn-right' => 'Turn right.',
-                'slight-right' => 'Keep slightly right.',
-                'turn-left' => 'Turn left.',
-                default => 'Keep slightly left.',
-            };
-
-            $candidate = [
-                'type' => $type,
-                'instruction' => $instruction,
-                'distance_from_start_meters' => round($cumulative[$i], 1),
-                'point' => $points[$i],
-                'bearing_after' => round($outgoing, 1),
-                'turn_degrees' => round($turn, 1),
-            ];
-
-            $lastIndex = count($maneuvers) - 1;
-            $lastDistance = (float) ($maneuvers[$lastIndex]['distance_from_start_meters'] ?? 0);
-            if ($lastIndex > 0 && $candidate['distance_from_start_meters'] - $lastDistance < $minimumSpacingMeters) {
-                if (abs($candidate['turn_degrees']) > abs((float) ($maneuvers[$lastIndex]['turn_degrees'] ?? 0))) {
-                    $maneuvers[$lastIndex] = $candidate;
-                }
-                continue;
-            }
-
-            $maneuvers[] = $candidate;
-        }
-
-        $totalDistance = end($cumulative) ?: 0;
-        $maneuvers[] = [
-            'type' => 'arrive',
-            'instruction' => "Arrive at {$to}.",
-            'distance_from_start_meters' => round($totalDistance, 1),
-            'point' => end($points),
-            'bearing_after' => null,
-            'turn_degrees' => 0,
-        ];
-
-        for ($i = 0; $i < count($maneuvers); $i++) {
-            $nextDistance = $maneuvers[$i + 1]['distance_from_start_meters'] ?? $maneuvers[$i]['distance_from_start_meters'];
-            $maneuvers[$i]['distance_to_next_meters'] = round(max(0, $nextDistance - $maneuvers[$i]['distance_from_start_meters']), 1);
-        }
-
-        return $maneuvers;
+        return $pixels * max(0.0001, (float) $map->meters_per_pixel);
     }
 
-    private function mapBearing(array $a, array $b): float
+    private function pointDistance(array $a, array $b): float
     {
-        $dx = (float) $b['x'] - (float) $a['x'];
-        $dy = (float) $b['y'] - (float) $a['y'];
-        $bearing = rad2deg(atan2($dx, -$dy));
+        $dx = (float) ($a['x'] ?? 0) - (float) ($b['x'] ?? 0);
+        $dy = (float) ($a['y'] ?? 0) - (float) ($b['y'] ?? 0);
 
-        return fmod($bearing + 360.0, 360.0);
-    }
-
-    private function signedAngle(float $angle): float
-    {
-        return fmod($angle + 540.0, 360.0) - 180.0;
-    }
-
-    private function bearingLabel(float $bearing): string
-    {
-        $labels = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
-        $index = ((int) round(fmod($bearing + 360.0, 360.0) / 45.0)) % 8;
-
-        return $labels[$index];
-    }
-
-    private function steps(array $maneuvers, int $walkMinutes): array
-    {
-        $steps = array_values(array_map(
-            fn (array $maneuver) => $maneuver['instruction'],
-            $maneuvers,
-        ));
-
-        if (! empty($steps)) {
-            $steps[count($steps) - 1] .= " Estimated walking time: {$walkMinutes} minute(s).";
-        }
-
-        return $steps;
+        return sqrt($dx * $dx + $dy * $dy);
     }
 }

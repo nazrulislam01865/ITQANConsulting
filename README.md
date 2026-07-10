@@ -85,3 +85,23 @@ php artisan view:clear
 ```
 
 For fresh install, set `ITQAN_ADMIN_EMAIL` and `ITQAN_ADMIN_PASSWORD` in `.env` before `php artisan migrate --seed`.
+
+
+## Resort guest map
+
+The ITQAN project includes the mobile-first Palace resort map at:
+
+- Public map: `/external-guest-map`
+- Admin map setup: `/admin/map`
+
+The map uses Leaflet with a private illustrated coordinate system. Places, vertices, curved path control points, distances, access flags, and map settings are stored in the database. GPS, motion sensors, live navigation, and movement logging are not included.
+
+For an existing installation, run:
+
+```bash
+php artisan migrate --force
+php artisan db:seed --class=ItqanExternalGuestMapSeeder --force
+php artisan optimize:clear
+```
+
+See `ITQAN_RESORT_MAP_REPLACEMENT.md` for details.

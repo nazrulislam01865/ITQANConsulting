@@ -13,7 +13,7 @@ class Place extends Model
 
     protected $fillable = [
         'map_setting_id', 'map_category_id', 'map_node_id', 'name', 'slug', 'subtitle',
-        'description', 'icon', 'pin_number', 'x', 'y', 'lat', 'lng', 'image', 'is_qr_point',
+        'description', 'icon', 'pin_number', 'x', 'y', 'image', 'is_qr_point',
         'is_active', 'sort_order',
     ];
 
@@ -21,8 +21,6 @@ class Place extends Model
         'x' => 'float',
         'y' => 'float',
         'pin_number' => 'integer',
-        'lat' => 'float',
-        'lng' => 'float',
         'is_qr_point' => 'boolean',
         'is_active' => 'boolean',
         'sort_order' => 'integer',

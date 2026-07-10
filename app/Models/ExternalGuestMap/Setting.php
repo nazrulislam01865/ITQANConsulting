@@ -12,14 +12,13 @@ class Setting extends Model
     protected $table = 'ext_guest_map_settings';
 
     protected $fillable = [
-        'name', 'map_type', 'map_file', 'width', 'height', 'meters_per_pixel', 'map_north_rotation_deg',
+        'name', 'map_type', 'map_file', 'width', 'height', 'meters_per_pixel',
         'walk_meters_per_minute', 'buggy_meters_per_minute', 'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'meters_per_pixel' => 'float',
-        'map_north_rotation_deg' => 'float',
         'width' => 'integer',
         'height' => 'integer',
         'walk_meters_per_minute' => 'integer',
