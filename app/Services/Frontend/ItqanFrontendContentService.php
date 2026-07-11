@@ -141,18 +141,32 @@ class ItqanFrontendContentService
     /** @param array<string,mixed> $content */
     private function applyHomeFromDatabase(array $content): array
     {
-        $sections = HomeSection::query()
+        $allSections = HomeSection::query()
             ->with(['activeItems'])
-            ->where('is_active', true)
             ->ordered()
             ->get()
             ->keyBy('section_key');
 
-        if ($sections->isEmpty()) {
+        if ($allSections->isEmpty()) {
             return $content;
         }
 
-        return $this->applyHomeSections($content, $sections);
+        $activeSections = $allSections->filter(fn (HomeSection $section): bool => $section->is_active);
+        $content = $this->applyHomeSections($content, $activeSections);
+
+        if ($testimonialSection = $allSections->get('home_testimonials')) {
+            $content['pages']['home']['testimonials']['is_active'] = (bool) $testimonialSection->is_active;
+        }
+
+        if ($valuesSection = $allSections->get('home_values')) {
+            $content['pages']['home']['values']['is_active'] = (bool) $valuesSection->is_active;
+        }
+
+        if ($ctaSection = $allSections->get('home_cta')) {
+            $content['pages']['home']['cta']['is_active'] = (bool) $ctaSection->is_active;
+        }
+
+        return $content;
     }
 
     /** @param array<string,mixed> $content */
@@ -162,23 +176,34 @@ class ItqanFrontendContentService
             return $content;
         }
 
-        $sections = PageSection::query()
+        $allSections = PageSection::query()
             ->with(['activeItems'])
-            ->where('is_active', true)
             ->ordered()
             ->get()
             ->groupBy('page_key')
             ->map(fn (Collection $items) => $items->keyBy('section_key'));
 
-        if ($sections->isEmpty()) {
+        if ($allSections->isEmpty()) {
             return $content;
         }
 
-        $content = $this->applyAboutSections($content, $sections->get('about', collect()));
-        $content = $this->applyServicesSections($content, $sections->get('services', collect()));
-        $content = $this->applyWorksSections($content, $sections->get('works', collect()));
-        $content = $this->applyCatalogSections($content, $sections->get('catalog', collect()));
-        $content = $this->applyContactSections($content, $sections->get('contact', collect()));
+        $activeSections = $allSections->map(
+            fn (Collection $items) => $items->filter(fn (PageSection $section): bool => $section->is_active)
+        );
+
+        $content = $this->applyAboutSections($content, $activeSections->get('about', collect()));
+        $content = $this->applyServicesSections($content, $activeSections->get('services', collect()));
+        $content = $this->applyWorksSections($content, $activeSections->get('works', collect()));
+        $content = $this->applyCatalogSections($content, $activeSections->get('catalog', collect()));
+        $content = $this->applyContactSections($content, $activeSections->get('contact', collect()));
+
+        if ($contactForm = $allSections->get('contact', collect())->get('contact_form')) {
+            $content['pages']['contact']['form']['is_active'] = (bool) $contactForm->is_active;
+        }
+
+        if ($contactCta = $allSections->get('contact', collect())->get('contact_cta')) {
+            $content['pages']['contact']['cta']['is_active'] = (bool) $contactCta->is_active;
+        }
 
         return $content;
     }
@@ -220,32 +245,83 @@ class ItqanFrontendContentService
         }
 
         if ($section = $sections->get('home_who')) {
+            $whyItems = $section->activeItems
+                ->where('item_type', 'card')
+                ->values()
+                ->map(function ($item, int $index): array {
+                    $settings = is_array($item->settings) ? $item->settings : [];
+
+                    return [
+                        'num' => str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
+                        'title' => $item->title,
+                        'text' => $item->text,
+                        'response' => trim((string) ($settings['response'] ?? 'We help organize the work into a clearer and more practical system.')),
+                        'stage_label' => trim((string) ($settings['stage_label'] ?? $item->title ?? 'A clearer way of working')),
+                    ];
+                })
+                ->all();
+
             $home['who'] = [
                 'label' => $section->label,
                 'title' => $section->title,
                 'lead' => $section->lead,
-                'cards' => $this->cards($section, 'card', true),
+                'cards' => $whyItems,
             ];
         }
 
         if ($section = $sections->get('home_problems')) {
-            $home['problems'] = [
-                'label' => $section->label,
-                'title' => $section->title,
-                'lead' => $section->lead,
-                'items' => $section->activeItems->where('item_type', 'problem')->map(fn ($item) => [
-                    'problem' => $item->settings['problem'] ?? $item->title,
-                    'response' => $item->settings['response'] ?? $item->text,
-                ])->values()->all(),
-            ];
+            $clarityItems = $section->activeItems
+                ->where('item_type', 'problem')
+                ->map(function ($item): array {
+                    $settings = is_array($item->settings) ? $item->settings : [];
+                    $summary = trim((string) ($settings['summary'] ?? $settings['response'] ?? $item->text ?? ''));
+                    $services = $this->lines((string) ($settings['services'] ?? ''));
+
+                    if ($services === [] && filled($settings['response'] ?? null)) {
+                        $services = [$settings['response']];
+                    }
+
+                    return [
+                        'problem' => trim((string) ($settings['problem'] ?? $item->title ?? '')),
+                        'summary' => $summary,
+                        'services' => $services,
+                    ];
+                })
+                ->filter(fn (array $item): bool => $item['problem'] !== '')
+                ->values()
+                ->all();
+
+            $home['problems']['label'] = $section->label ?: ($home['problems']['label'] ?? 'Interactive clarity check');
+            $home['problems']['title'] = $section->title ?: ($home['problems']['title'] ?? 'Where does the work feel unclear?');
+            $home['problems']['lead'] = $section->lead ?: ($home['problems']['lead'] ?? 'Choose the situation that sounds familiar.');
+
+            if ($clarityItems !== []) {
+                $home['problems']['items'] = $clarityItems;
+            }
         }
 
         if ($section = $sections->get('home_services_preview')) {
+            $serviceItems = $section->activeItems
+                ->where('item_type', 'service_card')
+                ->values()
+                ->map(function ($item, int $index): array {
+                    $settings = is_array($item->settings) ? $item->settings : [];
+
+                    return [
+                        'num' => $item->badge ?: str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
+                        'title' => $item->title,
+                        'text' => $item->text,
+                        'common_problem' => trim((string) ($settings['common_problem'] ?? 'The work lacks a clear structure, owner, or practical next step.')),
+                        'deliverables' => trim((string) ($settings['deliverables'] ?? 'A clear scope, practical recommendations, and an actionable delivery plan.')),
+                    ];
+                })
+                ->all();
+
             $home['services_preview'] = [
                 'label' => $section->label,
                 'title' => $section->title,
                 'lead' => $section->lead,
-                'items' => $this->cards($section, 'service_card'),
+                'items' => $serviceItems,
                 'button' => $this->sectionButton($section, 'services'),
             ];
         }
@@ -261,15 +337,22 @@ class ItqanFrontendContentService
 
         if ($section = $sections->get('home_testimonials')) {
             $home['testimonials'] = [
+                'is_active' => true,
                 'label' => $section->label,
                 'title' => $section->title,
+                'lead' => $section->lead,
             ];
-            $testimonials = $section->activeItems->where('item_type', 'testimonial')->map(fn ($item) => [
-                'title' => $item->title,
-                'text' => $item->text,
-                'author' => $item->settings['author'] ?? '',
-                'role' => $item->settings['role'] ?? '',
-            ])->values()->all();
+            $testimonials = $section->activeItems->where('item_type', 'testimonial')->map(function ($item): array {
+                $settings = is_array($item->settings) ? $item->settings : [];
+
+                return [
+                    'title' => $item->title,
+                    'text' => $item->text,
+                    'author' => $settings['author'] ?? '',
+                    'role' => $settings['role'] ?? '',
+                    'project' => $settings['project'] ?? '',
+                ];
+            })->values()->all();
             if ($testimonials !== []) {
                 $content['collections']['testimonials'] = $testimonials;
             }
@@ -283,11 +366,64 @@ class ItqanFrontendContentService
             ];
         }
 
-        if ($section = $sections->get('home_cta')) {
-            $home['cta'] = [
+        if ($section = $sections->get('home_values')) {
+            $valueItems = $section->activeItems
+                ->where('item_type', 'value')
+                ->values()
+                ->map(function ($item, int $index): array {
+                    $settings = is_array($item->settings) ? $item->settings : [];
+                    $number = $item->badge ?: str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+
+                    return [
+                        'num' => str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+                        'mini' => trim((string) ($settings['mini'] ?? ($number . ' / principle'))),
+                        'title' => $item->title,
+                        'text' => $item->text,
+                        'example' => trim((string) ($settings['example'] ?? '')),
+                    ];
+                })
+                ->all();
+
+            $home['values'] = [
+                'is_active' => true,
+                'label' => $section->label,
                 'title' => $section->title,
-                'text' => $section->lead,
+                'lead' => $section->lead,
+                'items' => $valueItems,
+            ];
+        }
+
+        if ($section = $sections->get('home_cta')) {
+            $settings = $section->settings ?: [];
+            $defaults = $home['cta'];
+            $defaultVcard = $defaults['vcard'] ?? [];
+            $qrImageUrl = $this->storageUrl($settings['qr_image_path'] ?? null)
+                ?: asset(ltrim((string) ($defaults['qr_image_url'] ?? '/images/default-itqan-contact-qr.png'), '/'));
+
+            $home['cta'] = [
+                'is_active' => true,
+                'eyebrow' => $section->label ?: ($defaults['eyebrow'] ?? 'Start with a conversation'),
+                'title' => $section->title ?: ($defaults['title'] ?? ''),
+                'text' => $section->lead ?: ($defaults['text'] ?? ''),
                 'button' => $this->sectionButton($section, 'contact'),
+                'save_button_text' => $settings['save_button_text'] ?? ($defaults['save_button_text'] ?? 'Save Contact'),
+                'qr_image_url' => $qrImageUrl,
+                'qr_alt' => $settings['qr_alt'] ?? ($defaults['qr_alt'] ?? 'Digital contact QR code'),
+                'qr_caption' => $settings['qr_caption'] ?? ($defaults['qr_caption'] ?? ''),
+                'contact_file_name' => $settings['contact_file_name'] ?? ($defaults['contact_file_name'] ?? 'ITQAN-Consulting-Digital-Card.vcf'),
+                'vcard' => [
+                    'first_name' => $settings['first_name'] ?? ($defaultVcard['first_name'] ?? ''),
+                    'last_name' => $settings['last_name'] ?? ($defaultVcard['last_name'] ?? ''),
+                    'full_name' => $settings['full_name'] ?? ($defaultVcard['full_name'] ?? ''),
+                    'credentials' => $settings['credentials'] ?? ($defaultVcard['credentials'] ?? ''),
+                    'organization' => $settings['organization'] ?? ($defaultVcard['organization'] ?? ''),
+                    'job_title' => $settings['job_title'] ?? ($defaultVcard['job_title'] ?? ''),
+                    'phone' => $settings['phone'] ?? ($defaultVcard['phone'] ?? ''),
+                    'whatsapp' => $settings['whatsapp'] ?? ($defaultVcard['whatsapp'] ?? ''),
+                    'email' => $settings['email'] ?? ($defaultVcard['email'] ?? ''),
+                    'website' => $settings['website'] ?? ($defaultVcard['website'] ?? ''),
+                    'note' => $settings['note'] ?? ($defaultVcard['note'] ?? ''),
+                ],
             ];
         }
 
@@ -480,21 +616,87 @@ class ItqanFrontendContentService
         if ($section = $sections->get('contact_hero')) {
             $contactPage['hero'] = $this->hero($section);
         }
+
         if ($section = $sections->get('contact_form')) {
-            $contactPage['side_note'] = [
-                'label' => $section->label,
-                'title' => $section->title,
-                'text' => $section->lead,
-                'steps' => $section->activeItems->where('item_type', 'step')->pluck('title')->values()->all(),
+            $settings = $section->settings ?: [];
+            $defaults = $contactPage['form'] ?? [];
+            $defaultSteps = $defaults['steps'] ?? [];
+            $defaultOptions = $content['collections']['contact_options'] ?? [];
+
+            $optionLines = function (string $key, array $fallback) use ($settings): array {
+                $lines = $this->lines((string) ($settings[$key] ?? ''));
+
+                return $lines !== [] ? $lines : $fallback;
+            };
+
+            $contactPage['form'] = [
+                'is_active' => true,
+                'label' => $section->label ?: ($defaults['label'] ?? 'Start a conversation'),
+                'title' => $section->title ?: ($defaults['title'] ?? ''),
+                'intro' => $section->lead ?: ($defaults['intro'] ?? ''),
+                'steps' => [
+                    [
+                        'title' => $settings['problem_step_title'] ?? ($defaultSteps[0]['title'] ?? 'What feels unclear right now?'),
+                        'text' => $settings['problem_step_text'] ?? ($defaultSteps[0]['text'] ?? ''),
+                    ],
+                    [
+                        'title' => $settings['support_step_title'] ?? ($defaultSteps[1]['title'] ?? 'What kind of support may help?'),
+                        'text' => $settings['support_step_text'] ?? ($defaultSteps[1]['text'] ?? ''),
+                    ],
+                    [
+                        'title' => $settings['details_step_title'] ?? ($defaultSteps[2]['title'] ?? 'Share the basic details.'),
+                        'text' => $settings['details_step_text'] ?? ($defaultSteps[2]['text'] ?? ''),
+                    ],
+                    [
+                        'title' => $settings['message_step_title'] ?? ($defaultSteps[3]['title'] ?? 'Describe the situation in your own words.'),
+                        'text' => $settings['message_step_text'] ?? ($defaultSteps[3]['text'] ?? ''),
+                    ],
+                ],
+                'submit_text' => $settings['submit_text'] ?? ($defaults['submit_text'] ?? 'Send the messy version'),
+                'success_title' => $settings['success_title'] ?? ($defaults['success_title'] ?? 'Thank you. The first step is clear.'),
+                'success_text' => $settings['success_text'] ?? ($defaults['success_text'] ?? 'Your message has been received.'),
             ];
 
             $content['collections']['contact_options'] = [
-                'needs' => $this->lines((string) ($section->settings['needs'] ?? '')),
-                'methods' => $this->lines((string) ($section->settings['methods'] ?? '')),
+                'problems' => $optionLines('problems', $defaultOptions['problems'] ?? []),
+                'needs' => $optionLines('needs', $defaultOptions['needs'] ?? []),
+                'methods' => $optionLines('methods', $defaultOptions['methods'] ?? []),
+                'budgets' => $optionLines('budgets', $defaultOptions['budgets'] ?? []),
             ];
         }
+
         if ($section = $sections->get('contact_cta')) {
-            $contactPage['cta'] = $this->cta($section, 'contact');
+            $settings = $section->settings ?: [];
+            $defaults = $contactPage['cta'];
+            $defaultVcard = $defaults['vcard'] ?? [];
+            $qrImageUrl = $this->storageUrl($settings['qr_image_path'] ?? null)
+                ?: asset(ltrim((string) ($defaults['qr_image_url'] ?? '/images/default-itqan-contact-qr.png'), '/'));
+
+            $contactPage['cta'] = [
+                'is_active' => true,
+                'eyebrow' => $section->label ?: ($defaults['eyebrow'] ?? 'Save the contact'),
+                'title' => $section->title ?: ($defaults['title'] ?? ''),
+                'text' => $section->lead ?: ($defaults['text'] ?? ''),
+                'button' => $this->sectionButton($section, 'contact'),
+                'save_button_text' => $settings['save_button_text'] ?? ($defaults['save_button_text'] ?? 'Save Contact'),
+                'qr_image_url' => $qrImageUrl,
+                'qr_alt' => $settings['qr_alt'] ?? ($defaults['qr_alt'] ?? 'Digital contact QR code'),
+                'qr_caption' => $settings['qr_caption'] ?? ($defaults['qr_caption'] ?? ''),
+                'contact_file_name' => $settings['contact_file_name'] ?? ($defaults['contact_file_name'] ?? 'md-aminul-islam-itqan-consulting.vcf'),
+                'vcard' => [
+                    'first_name' => $settings['first_name'] ?? ($defaultVcard['first_name'] ?? ''),
+                    'last_name' => $settings['last_name'] ?? ($defaultVcard['last_name'] ?? ''),
+                    'full_name' => $settings['full_name'] ?? ($defaultVcard['full_name'] ?? ''),
+                    'credentials' => $settings['credentials'] ?? ($defaultVcard['credentials'] ?? ''),
+                    'organization' => $settings['organization'] ?? ($defaultVcard['organization'] ?? ''),
+                    'job_title' => $settings['job_title'] ?? ($defaultVcard['job_title'] ?? ''),
+                    'phone' => $settings['phone'] ?? ($defaultVcard['phone'] ?? ''),
+                    'whatsapp' => $settings['whatsapp'] ?? ($defaultVcard['whatsapp'] ?? ''),
+                    'email' => $settings['email'] ?? ($defaultVcard['email'] ?? ''),
+                    'website' => $settings['website'] ?? ($defaultVcard['website'] ?? ''),
+                    'note' => $settings['note'] ?? ($defaultVcard['note'] ?? ''),
+                ],
+            ];
         }
 
         $content['pages']['contact'] = $contactPage;

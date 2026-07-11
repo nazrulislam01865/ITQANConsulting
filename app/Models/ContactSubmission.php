@@ -14,6 +14,7 @@ class ContactSubmission extends Model
         'phone',
         'need',
         'areas',
+        'support_types',
         'budget_range',
         'preferred_contact_method',
         'message',
@@ -24,6 +25,7 @@ class ContactSubmission extends Model
 
     protected $casts = [
         'areas' => 'array',
+        'support_types' => 'array',
     ];
 
     public function scopeLatestFirst(Builder $query): Builder

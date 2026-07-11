@@ -22,9 +22,6 @@
     'catalog_viewer' => [
       'catalog_page' => ['title' => 'Catalog pages'],
     ],
-    'contact_form' => [
-      'step' => ['title' => 'What happens next steps'],
-    ],
     default => [],
   };
 

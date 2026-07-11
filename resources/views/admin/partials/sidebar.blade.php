@@ -67,8 +67,6 @@
       </div>
     @endforeach
 
-    <a class="{{ request()->routeIs('admin.map.*') ? 'active' : '' }}" href="{{ route('admin.map.dashboard') }}">Resort Guest Map</a>
-    <a href="{{ route('external-guest-map.index') }}" target="_blank" rel="noopener">Open Resort Map</a>
     <a class="{{ request()->routeIs('admin.site-settings.*') ? 'active' : '' }}" href="{{ route('admin.site-settings.edit') }}">Site Settings, Logo &amp; Favicon</a>
     <a class="{{ request()->routeIs('admin.header-menu.*') ? 'active' : '' }}" href="{{ route('admin.header-menu.index') }}">Header Menu</a>
     <a class="{{ request()->routeIs('admin.footer-menu.*') ? 'active' : '' }}" href="{{ route('admin.footer-menu.index') }}">Footer Menu</a>

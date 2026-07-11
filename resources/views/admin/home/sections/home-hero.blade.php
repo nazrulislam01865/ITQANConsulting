@@ -11,6 +11,11 @@
       </label>
     </div>
 
+    <div class="hero-visual-lock-note" role="note">
+      <strong>Banner visual is fixed for the whole website.</strong>
+      <span>The template-style dark background, moving connected particles, and mouse-following glow are applied automatically to every page banner. Banner image upload is intentionally unavailable.</span>
+    </div>
+
     <div class="form-grid hero-main-grid">
       <div class="field">
         <label>Top label</label>

@@ -8,6 +8,7 @@
     'home_working' => 'step',
     'home_testimonials' => 'testimonial',
     'home_works_preview' => 'work',
+    'home_values' => 'value',
     default => 'card',
   };
   $hideBadge = $section->section_key === 'home_who';
@@ -43,6 +44,7 @@
             <tr>
               <th>Item</th>
               <th>Type</th>
+              <th>Order</th>
               <th>Details</th>
               <th>Status</th>
               <th>Action</th>
@@ -52,7 +54,7 @@
             @foreach($section->items as $item)
               @php
                 $summaryTitle = $item->title ?: $item->button_text ?: $item->badge ?: ($item->settings['problem'] ?? null) ?: 'Untitled item';
-                $summaryText = $item->text ?: $item->subtitle ?: ($item->settings['response'] ?? null) ?: ($item->settings['author'] ?? null) ?: ($item->settings['role'] ?? null);
+                $summaryText = $item->text ?: $item->subtitle ?: ($item->settings['summary'] ?? null) ?: ($item->settings['response'] ?? null) ?: ($item->settings['author'] ?? null) ?: ($item->settings['role'] ?? null);
               @endphp
               <tr class="{{ $editingItem?->is($item) ? 'is-editing' : '' }}">
                 <td>
@@ -60,6 +62,7 @@
                   @if($summaryText)<small>{{ \Illuminate\Support\Str::limit(strip_tags($summaryText), 95) }}</small>@endif
                 </td>
                 <td><span class="pill">{{ str_replace('_', ' ', $item->item_type) }}</span></td>
+                <td><span class="pill">{{ $item->sort_order }}</span></td>
                 <td>
                   @if($item->button_text)<small>Button: {{ $item->button_text }}</small>@endif
                   @if($item->button_route)<small>Route: {{ $item->button_route }}</small>@endif
@@ -97,7 +100,7 @@
       </div>
       <div class="form-grid">
         @include('admin.home.sections.partials.item-type-select', ['item' => $editingItem, 'defaultType' => $newType])
-        @include('admin.home.sections.partials.item-fields', ['item' => $editingItem, 'routes' => $routes, 'hideBadge' => $hideBadge])
+        @include('admin.home.sections.partials.item-fields', ['item' => $editingItem, 'routes' => $routes, 'hideBadge' => $hideBadge, 'sectionKey' => $section->section_key])
         <label class="check-row"><input type="checkbox" name="is_active" value="1" @checked($editingItem->is_active)> Active</label>
       </div>
       <div class="button-row"><button class="btn primary" type="submit">Save Item</button></div>
@@ -115,7 +118,7 @@
       </div>
       <div class="form-grid">
         @include('admin.home.sections.partials.item-type-select', ['item' => null, 'defaultType' => $newType])
-        @include('admin.home.sections.partials.item-fields', ['item' => null, 'routes' => $routes, 'defaultType' => $newType, 'hideBadge' => $hideBadge])
+        @include('admin.home.sections.partials.item-fields', ['item' => null, 'routes' => $routes, 'defaultType' => $newType, 'hideBadge' => $hideBadge, 'sectionKey' => $section->section_key])
         <label class="check-row"><input type="checkbox" name="is_active" value="1" checked> Active</label>
       </div>
       <button class="btn primary" type="submit">Add Item</button>

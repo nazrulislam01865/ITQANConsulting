@@ -17,7 +17,7 @@
   <div class="button-row"><button class="btn primary" type="submit">Save Section Content</button></div>
 </form>
 
-@unless(in_array($section->section_key, ['home_founder', 'home_works_preview'], true))
+@unless(in_array($section->section_key, ['home_founder', 'home_works_preview', 'home_cta'], true))
   @include('admin.home.sections.items', ['section' => $section, 'routes' => $routes])
 @endunless
 @endsection

@@ -10,6 +10,7 @@
     'step' => 'Working step',
     'problem' => 'Problem / response',
     'testimonial' => 'Testimonial',
+    'value' => 'How we think principle',
     'work' => 'Work card',
   ];
   $selectedType = old('item_type', $item->item_type ?? ($defaultType ?? 'card'));

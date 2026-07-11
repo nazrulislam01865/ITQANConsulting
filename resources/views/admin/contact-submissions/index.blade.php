@@ -43,7 +43,7 @@
               <br><span class="muted">{{ $item->phone }}</span>
             @endif
           </td>
-          <td>{{ $item->need ?: '—' }}</td>
+          <td>{{ collect($item->support_types ?? [])->filter()->join(', ') ?: ($item->need ?: '—') }}</td>
           <td>{{ \Illuminate\Support\Str::limit($item->message, 90) }}</td>
           <td><span class="pill {{ $item->status === 'unread' ? '' : 'off' }}">{{ ucfirst($item->status) }}</span></td>
           <td class="button-row">

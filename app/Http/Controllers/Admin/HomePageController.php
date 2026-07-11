@@ -30,7 +30,12 @@ class HomePageController extends Controller
 
     public function update(HomeSectionRequest $request, HomeSection $section, HomePageAdminService $service): RedirectResponse
     {
-        $service->updateSection($section, $request->validated(), $request->file('founder_image'));
+        $service->updateSection(
+            $section,
+            $request->validated(),
+            $request->file('founder_image'),
+            $request->file('qr_image')
+        );
 
         return back()->with('success', 'Home section updated successfully.');
     }

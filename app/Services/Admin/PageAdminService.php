@@ -4,6 +4,7 @@ namespace App\Services\Admin;
 
 use App\Models\PageSection;
 use App\Models\PageSectionItem;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 
 class PageAdminService
@@ -13,12 +14,37 @@ class PageAdminService
     }
 
     /** @param array<string,mixed> $data */
-    public function updateSection(PageSection $section, array $data): PageSection
+    public function updateSection(
+        PageSection $section,
+        array $data,
+        ?UploadedFile $qrImage = null
+    ): PageSection
     {
         $settings = $section->settings ?: [];
 
         if (array_key_exists('settings', $data)) {
             $settings = array_merge($settings, $this->cleanSettings($data['settings'] ?? []));
+        }
+
+        if (str_ends_with($section->section_key, '_hero')) {
+            unset(
+                $settings['image'],
+                $settings['image_path'],
+                $settings['background_image'],
+                $settings['background_image_path'],
+                $settings['hero_image'],
+                $settings['hero_image_path'],
+                $settings['banner_image'],
+                $settings['banner_image_path']
+            );
+        }
+
+        if ($section->section_key === 'contact_cta') {
+            $settings['qr_image_path'] = $this->imageUploadService->replace(
+                $qrImage,
+                $settings['qr_image_path'] ?? null,
+                'page/contact/digital-contact'
+            );
         }
 
         $section->fill([

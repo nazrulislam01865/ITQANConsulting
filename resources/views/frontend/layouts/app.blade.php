@@ -8,13 +8,14 @@
   <meta name="description" content="{{ $page['meta_description'] ?? $site['description'] }}" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ asset('assets/css/itqan-template.css') }}?v=work-image-link-1">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ asset('assets/css/itqan-template.css') }}?v=mobile-values-contact-wizard-1">
   @vite(['resources/js/app.js'])
   @stack('head')
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
+  <div class="scroll-progress" id="scrollProgress" aria-hidden="true"><span></span></div>
   <div class="site-bg" aria-hidden="true"></div>
   <div class="grain" aria-hidden="true"></div>
 

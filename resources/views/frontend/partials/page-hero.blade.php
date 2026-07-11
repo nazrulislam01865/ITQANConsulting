@@ -1,4 +1,4 @@
-<section class="hero space-hero">
+<section class="hero space-hero itqan-banner" data-itqan-banner>
   @include('frontend.partials.hero-space')
   <div class="container">
     <div class="hero-copy reveal">

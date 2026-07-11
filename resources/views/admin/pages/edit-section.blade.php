@@ -11,7 +11,7 @@
   <a class="btn" href="{{ route('admin.pages.index', $pageKey) }}">Back to {{ $pageTitle }}</a>
 </div>
 
-<form class="form-card" method="POST" action="{{ route('admin.pages.sections.update', $section) }}">
+<form class="form-card" method="POST" action="{{ route('admin.pages.sections.update', $section) }}" enctype="multipart/form-data">
   @csrf
   @method('PUT')
   @includeIf('admin.pages.sections.' . str_replace('_', '-', $section->section_key), ['section' => $section, 'routes' => $routes])

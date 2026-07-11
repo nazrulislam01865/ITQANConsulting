@@ -29,7 +29,8 @@
 
   <div class="card light">
     <h3>Request Details</h3>
-    <p><strong>Need:</strong> {{ $submission->need ?: '—' }}</p>
+    <p><strong>Support requested:</strong> {{ collect($submission->support_types ?? [])->filter()->join(', ') ?: ($submission->need ?: '—') }}</p>
+    <p><strong>Problem areas:</strong> {{ collect($submission->areas ?? [])->filter()->join(', ') ?: '—' }}</p>
     <p><strong>Budget:</strong> {{ $submission->budget_range ?: '—' }}</p>
     <p><strong>Preferred Method:</strong> {{ $submission->preferred_contact_method ?: '—' }}</p>
   </div>

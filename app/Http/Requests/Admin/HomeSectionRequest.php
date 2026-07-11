@@ -23,8 +23,9 @@ class HomeSectionRequest extends FormRequest
             'button_route' => ['nullable', 'string', 'max:80'],
             'button_url' => ['nullable', 'string', 'max:255'],
             'settings' => ['nullable', 'array'],
-            'settings.*' => ['nullable', 'string', 'max:500'],
+            'settings.*' => ['nullable', 'string', 'max:2000'],
             'founder_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'qr_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }

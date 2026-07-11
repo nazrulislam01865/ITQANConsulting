@@ -50,7 +50,11 @@ class PageContentController extends Controller
 
     public function update(PageSectionRequest $request, PageSection $section, PageAdminService $service): RedirectResponse
     {
-        $service->updateSection($section, $request->validated());
+        $service->updateSection(
+            $section,
+            $request->validated(),
+            $request->file('qr_image')
+        );
 
         return back()->with('success', $section->admin_title . ' updated successfully.');
     }

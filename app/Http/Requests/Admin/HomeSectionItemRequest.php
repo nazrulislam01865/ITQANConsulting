@@ -27,6 +27,7 @@ class HomeSectionItemRequest extends FormRequest
                 'step',
                 'problem',
                 'testimonial',
+                'value',
                 'work',
             ])],
             'badge' => ['nullable', 'string', 'max:80'],

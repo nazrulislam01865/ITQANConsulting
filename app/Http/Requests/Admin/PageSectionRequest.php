@@ -24,6 +24,7 @@ class PageSectionRequest extends FormRequest
             'button_url' => ['nullable', 'string', 'max:255'],
             'settings' => ['nullable', 'array'],
             'settings.*' => ['nullable', 'string', 'max:3000'],
+            'qr_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }

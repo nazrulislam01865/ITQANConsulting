@@ -357,3 +357,8 @@ body.admin-mobile-menu-open .admin-mobile-menu-toggle span:nth-child(3){
 }
 
 .media-preview-block{display:grid;gap:8px;margin-top:12px;align-items:start}.media-preview-block>span,.media-preview-block>small{color:var(--admin-muted);font-size:.78rem;font-weight:900;line-height:1.4}.favicon-preview-block{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.favicon-preview{width:48px;height:48px;border-radius:14px;background:#fff;object-fit:contain;border:1px solid rgba(255,255,255,.22);padding:8px}.muted-warning{border-color:rgba(24,184,255,.22);background:rgba(24,184,255,.08);color:#dff5ff}
+
+/* Fixed shared banner notice */
+.hero-visual-lock-note{display:grid;gap:5px;margin:0 0 18px;padding:14px 16px;border:1px solid rgba(24,184,255,.28);border-radius:16px;background:linear-gradient(135deg,rgba(24,184,255,.11),rgba(105,212,255,.045));color:#dff6ff}
+.hero-visual-lock-note strong{font-size:.86rem;color:#fff}
+.hero-visual-lock-note span{font-size:.78rem;line-height:1.55;color:#aebed0}

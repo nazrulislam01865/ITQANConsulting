@@ -122,7 +122,7 @@ class ItqanWebsiteSeeder extends Seeder
             array_map(fn ($ticker, $index) => ['item_type' => 'ticker', 'text' => $ticker, 'sort_order' => 200 + (($index + 1) * 10)], $home['hero']['ticker'], array_keys($home['hero']['ticker']))
         ));
 
-        $founder = $this->homeSection('home_founder', 'Founder Section', 20, [
+        $founder = $this->homeSection('home_founder', "Founder's Message Section", 20, [
             'label' => $home['founder']['label'],
             'title' => $home['founder']['title'],
             'description' => implode("\n\n", $home['founder']['paragraphs']),
@@ -130,19 +130,39 @@ class ItqanWebsiteSeeder extends Seeder
         ]);
         $founder->items()->where('item_type', 'paragraph')->delete();
 
-        $who = $this->homeSection('home_who', 'Who We Are Section', 30, [
+        $who = $this->homeSection('home_who', 'Why ITQAN Exists Section', 30, [
             'label' => $home['who']['label'],
             'title' => $home['who']['title'],
             'lead' => $home['who']['lead'],
         ]);
-        $this->syncHomeItems($who, array_map(fn ($card, $index) => ['item_type' => 'card', 'badge' => null, 'title' => $card['title'], 'text' => $card['text'], 'sort_order' => ($index + 1) * 10], $home['who']['cards'], array_keys($home['who']['cards'])));
+        $this->syncHomeItems($who, array_map(fn ($card, $index) => [
+            'item_type' => 'card',
+            'badge' => null,
+            'title' => $card['title'],
+            'text' => $card['text'],
+            'settings' => [
+                'response' => $card['response'] ?? '',
+                'stage_label' => $card['stage_label'] ?? '',
+            ],
+            'sort_order' => ($index + 1) * 10,
+        ], $home['who']['cards'], array_keys($home['who']['cards'])));
 
-        $problems = $this->homeSection('home_problems', 'Why ITQAN Exists Section', 40, [
+        $problems = $this->homeSection('home_problems', 'Interactive Clarity Check Section', 40, [
             'label' => $home['problems']['label'],
             'title' => $home['problems']['title'],
             'lead' => $home['problems']['lead'],
         ]);
-        $this->syncHomeItems($problems, array_map(fn ($item, $index) => ['item_type' => 'problem', 'title' => $item['problem'], 'text' => $item['response'], 'settings' => ['problem' => $item['problem'], 'response' => $item['response']], 'sort_order' => ($index + 1) * 10], $home['problems']['items'], array_keys($home['problems']['items'])));
+        $this->syncHomeItems($problems, array_map(fn ($item, $index) => [
+            'item_type' => 'problem',
+            'title' => $item['problem'],
+            'text' => $item['summary'],
+            'settings' => [
+                'problem' => $item['problem'],
+                'summary' => $item['summary'],
+                'services' => implode("\n", $item['services']),
+            ],
+            'sort_order' => ($index + 1) * 10,
+        ], $home['problems']['items'], array_keys($home['problems']['items'])));
 
         $services = $this->homeSection('home_services_preview', 'Services Preview Section', 50, [
             'label' => $home['services_preview']['label'],
@@ -151,7 +171,17 @@ class ItqanWebsiteSeeder extends Seeder
             'button_text' => $home['services_preview']['button']['text'],
             'button_route' => $home['services_preview']['button']['route'],
         ]);
-        $this->syncHomeItems($services, array_map(fn ($item, $index) => ['item_type' => 'service_card', 'badge' => $item['num'], 'title' => $item['title'], 'text' => $item['text'], 'sort_order' => ($index + 1) * 10], $home['services_preview']['items'], array_keys($home['services_preview']['items'])));
+        $this->syncHomeItems($services, array_map(fn ($item, $index) => [
+            'item_type' => 'service_card',
+            'badge' => $item['num'],
+            'title' => $item['title'],
+            'text' => $item['text'],
+            'settings' => [
+                'common_problem' => $item['common_problem'] ?? '',
+                'deliverables' => $item['deliverables'] ?? '',
+            ],
+            'sort_order' => ($index + 1) * 10,
+        ], $home['services_preview']['items'], array_keys($home['services_preview']['items'])));
 
         $working = $this->homeSection('home_working', 'Our Way of Working Section', 60, [
             'label' => $home['working']['label'],
@@ -160,11 +190,22 @@ class ItqanWebsiteSeeder extends Seeder
         ]);
         $this->syncHomeItems($working, array_map(fn ($item, $index) => ['item_type' => 'step', 'badge' => $item['num'], 'title' => $item['title'], 'text' => $item['text'], 'sort_order' => ($index + 1) * 10], $home['working']['items'], array_keys($home['working']['items'])));
 
-        $testimonials = $this->homeSection('home_testimonials', 'Testimonials Section', 70, [
+        $testimonials = $this->homeSection('home_testimonials', 'Client Words Section', 70, [
             'label' => $home['testimonials']['label'],
             'title' => $home['testimonials']['title'],
+            'lead' => $home['testimonials']['lead'] ?? null,
         ]);
-        $this->syncHomeItems($testimonials, array_map(fn ($item, $index) => ['item_type' => 'testimonial', 'title' => $item['title'], 'text' => $item['text'], 'settings' => ['author' => $item['author'], 'role' => $item['role']], 'sort_order' => ($index + 1) * 10], $content['collections']['testimonials'], array_keys($content['collections']['testimonials'])));
+        $this->syncHomeItems($testimonials, array_map(fn ($item, $index) => [
+            'item_type' => 'testimonial',
+            'title' => $item['title'],
+            'text' => $item['text'],
+            'settings' => [
+                'author' => $item['author'],
+                'role' => $item['role'],
+                'project' => $item['project'] ?? '',
+            ],
+            'sort_order' => ($index + 1) * 10,
+        ], $content['collections']['testimonials'], array_keys($content['collections']['testimonials'])));
 
         $this->homeSection('home_works_preview', 'Works Preview Section', 80, [
             'label' => $home['works_preview']['label'],
@@ -173,11 +214,47 @@ class ItqanWebsiteSeeder extends Seeder
             'button_route' => $home['works_preview']['button']['route'],
         ]);
 
-        $this->homeSection('home_cta', 'Final CTA Section', 90, [
+        $values = $this->homeSection('home_values', 'How We Think Section', 90, [
+            'label' => $home['values']['label'],
+            'title' => $home['values']['title'],
+            'lead' => $home['values']['lead'] ?? null,
+        ]);
+        $this->syncHomeItems($values, array_map(fn ($item, $index) => [
+            'item_type' => 'value',
+            'badge' => $item['num'] ?? str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
+            'title' => $item['title'],
+            'text' => $item['text'],
+            'settings' => [
+                'mini' => $item['mini'] ?? '',
+                'example' => $item['example'] ?? '',
+            ],
+            'sort_order' => ($index + 1) * 10,
+        ], $home['values']['items'], array_keys($home['values']['items'])));
+
+        $this->homeSection('home_cta', 'Digital Contact Card Section', 100, [
+            'label' => $home['cta']['eyebrow'],
             'title' => $home['cta']['title'],
             'lead' => $home['cta']['text'],
             'button_text' => $home['cta']['button']['text'],
             'button_route' => $home['cta']['button']['route'],
+            'button_url' => $home['cta']['button']['url'],
+            'settings' => [
+                'save_button_text' => $home['cta']['save_button_text'],
+                'qr_alt' => $home['cta']['qr_alt'],
+                'qr_caption' => $home['cta']['qr_caption'],
+                'contact_file_name' => $home['cta']['contact_file_name'],
+                'first_name' => $home['cta']['vcard']['first_name'],
+                'last_name' => $home['cta']['vcard']['last_name'],
+                'full_name' => $home['cta']['vcard']['full_name'],
+                'credentials' => $home['cta']['vcard']['credentials'],
+                'organization' => $home['cta']['vcard']['organization'],
+                'job_title' => $home['cta']['vcard']['job_title'],
+                'phone' => $home['cta']['vcard']['phone'],
+                'whatsapp' => $home['cta']['vcard']['whatsapp'],
+                'email' => $home['cta']['vcard']['email'],
+                'website' => $home['cta']['vcard']['website'],
+                'note' => $home['cta']['vcard']['note'],
+            ],
         ]);
     }
 
@@ -268,21 +345,59 @@ class ItqanWebsiteSeeder extends Seeder
     private function seedContactPage(array $content): void
     {
         $contact = $content['pages']['contact'];
+        $formContent = $contact['form'];
+        $formSteps = $formContent['steps'] ?? [];
 
         $this->pageSection('contact', 'contact_hero', 'Hero Section', 10, $this->heroData($contact['hero']));
 
-        $form = $this->pageSection('contact', 'contact_form', 'Contact Form Section', 20, [
-            'label' => $contact['side_note']['label'],
-            'title' => $contact['side_note']['title'],
-            'lead' => $contact['side_note']['text'],
+        $this->pageSection('contact', 'contact_form', 'Interactive Contact Form', 20, [
+            'label' => $formContent['label'],
+            'title' => $formContent['title'],
+            'lead' => $formContent['intro'],
             'settings' => [
+                'problems' => implode("\n", $content['collections']['contact_options']['problems']),
                 'needs' => implode("\n", $content['collections']['contact_options']['needs']),
                 'methods' => implode("\n", $content['collections']['contact_options']['methods']),
+                'budgets' => implode("\n", $content['collections']['contact_options']['budgets']),
+                'problem_step_title' => $formSteps[0]['title'] ?? '',
+                'problem_step_text' => $formSteps[0]['text'] ?? '',
+                'support_step_title' => $formSteps[1]['title'] ?? '',
+                'support_step_text' => $formSteps[1]['text'] ?? '',
+                'details_step_title' => $formSteps[2]['title'] ?? '',
+                'details_step_text' => $formSteps[2]['text'] ?? '',
+                'message_step_title' => $formSteps[3]['title'] ?? '',
+                'message_step_text' => $formSteps[3]['text'] ?? '',
+                'submit_text' => $formContent['submit_text'],
+                'success_title' => $formContent['success_title'],
+                'success_text' => $formContent['success_text'],
             ],
         ]);
-        $this->syncPageItems($form, array_map(fn ($item, $index) => ['item_type' => 'step', 'title' => $item, 'sort_order' => ($index + 1) * 10], $contact['side_note']['steps'], array_keys($contact['side_note']['steps'])));
 
-        $this->pageSection('contact', 'contact_cta', 'CTA Section', 30, $this->ctaSectionData($contact['cta']));
+        $this->pageSection('contact', 'contact_cta', 'QR Contact Card', 30, [
+            'label' => $contact['cta']['eyebrow'],
+            'title' => $contact['cta']['title'],
+            'lead' => $contact['cta']['text'],
+            'button_text' => $contact['cta']['button']['text'],
+            'button_route' => $contact['cta']['button']['route'],
+            'button_url' => $contact['cta']['button']['url'],
+            'settings' => [
+                'save_button_text' => $contact['cta']['save_button_text'],
+                'qr_alt' => $contact['cta']['qr_alt'],
+                'qr_caption' => $contact['cta']['qr_caption'],
+                'contact_file_name' => $contact['cta']['contact_file_name'],
+                'first_name' => $contact['cta']['vcard']['first_name'],
+                'last_name' => $contact['cta']['vcard']['last_name'],
+                'full_name' => $contact['cta']['vcard']['full_name'],
+                'credentials' => $contact['cta']['vcard']['credentials'],
+                'organization' => $contact['cta']['vcard']['organization'],
+                'job_title' => $contact['cta']['vcard']['job_title'],
+                'phone' => $contact['cta']['vcard']['phone'],
+                'whatsapp' => $contact['cta']['vcard']['whatsapp'],
+                'email' => $contact['cta']['vcard']['email'],
+                'website' => $contact['cta']['vcard']['website'],
+                'note' => $contact['cta']['vcard']['note'],
+            ],
+        ]);
     }
 
     /** @param array<string,mixed> $hero */

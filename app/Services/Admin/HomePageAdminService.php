@@ -13,12 +13,32 @@ class HomePageAdminService
     }
 
     /** @param array<string,mixed> $data */
-    public function updateSection(HomeSection $section, array $data, ?UploadedFile $founderImage = null): HomeSection
+    public function updateSection(
+        HomeSection $section,
+        array $data,
+        ?UploadedFile $founderImage = null,
+        ?UploadedFile $qrImage = null
+    ): HomeSection
     {
         $settings = $section->settings ?: [];
 
         if (array_key_exists('settings', $data)) {
-            $settings = array_merge($settings, array_filter($data['settings'] ?? [], fn ($value) => $value !== null));
+            foreach (($data['settings'] ?? []) as $key => $value) {
+                $settings[$key] = is_string($value) ? trim($value) : ($value ?? '');
+            }
+        }
+
+        if ($section->section_key === 'home_hero') {
+            unset(
+                $settings['image'],
+                $settings['image_path'],
+                $settings['background_image'],
+                $settings['background_image_path'],
+                $settings['hero_image'],
+                $settings['hero_image_path'],
+                $settings['banner_image'],
+                $settings['banner_image_path']
+            );
         }
 
         if ($section->section_key === 'home_founder') {
@@ -26,6 +46,14 @@ class HomePageAdminService
                 $founderImage,
                 $settings['image_path'] ?? null,
                 'home/founder'
+            );
+        }
+
+        if ($section->section_key === 'home_cta') {
+            $settings['qr_image_path'] = $this->imageUploadService->replace(
+                $qrImage,
+                $settings['qr_image_path'] ?? null,
+                'home/digital-contact'
             );
         }
 
@@ -47,9 +75,12 @@ class HomePageAdminService
     /** @param array<string,mixed> $data */
     public function createItem(HomeSection $section, array $data, ?UploadedFile $image = null): HomeSectionItem
     {
+        $sortOrder = $this->requestedSortOrder($data)
+            ?? $this->nextItemSortOrder($section, $data['item_type'] ?? 'card');
+
         return $section->items()->create($this->normalizeItem(
             $data,
-            $this->nextItemSortOrder($section, $data['item_type'] ?? 'card'),
+            $sortOrder,
             $image
         ));
     }
@@ -57,7 +88,8 @@ class HomePageAdminService
     /** @param array<string,mixed> $data */
     public function updateItem(HomeSectionItem $item, array $data, ?UploadedFile $image = null): HomeSectionItem
     {
-        $item->update($this->normalizeItem($data, $item->sort_order, $image, $item));
+        $sortOrder = $this->requestedSortOrder($data) ?? $item->sort_order;
+        $item->update($this->normalizeItem($data, $sortOrder, $image, $item));
 
         return $item;
     }
@@ -87,6 +119,11 @@ class HomePageAdminService
             $badge = $settings['platform'] ?? $badge;
         }
 
+        if ($itemType === 'problem') {
+            $data['title'] = $settings['problem'] ?? ($data['title'] ?? null);
+            $data['text'] = $settings['summary'] ?? $settings['response'] ?? ($data['text'] ?? null);
+        }
+
         if ($itemType === 'work') {
             $settings['image_path'] = $this->imageUploadService->replace(
                 $image,
@@ -109,6 +146,17 @@ class HomePageAdminService
             'sort_order' => $sortOrder,
             'is_active' => (bool) ($data['is_active'] ?? false),
         ];
+    }
+
+
+    /** @param array<string,mixed> $data */
+    private function requestedSortOrder(array $data): ?int
+    {
+        if (! array_key_exists('sort_order', $data) || $data['sort_order'] === null || $data['sort_order'] === '') {
+            return null;
+        }
+
+        return (int) $data['sort_order'];
     }
 
     private function nextItemSortOrder(HomeSection $section, string $itemType): int
