@@ -145,6 +145,11 @@ return [
                 ],
                 'name' => 'Md Aminul Islam, PMP, CSM',
                 'role' => 'Founder & Chief Consultant, ITQAN Consulting',
+                'button' => [
+                    'text' => 'View my digital resume',
+                    'route' => 'starpmaminul.portfolio',
+                    'url' => null,
+                ],
             ],
             'who' => [
                 'label' => 'Why ITQAN Exists',

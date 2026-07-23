@@ -86,8 +86,10 @@
 <div class="hero-actions reveal delay-3">
 <a class="button primary" href="#work">{{ $hero['primary_button'] }}<svg fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
 </a>
-<button class="button secondary" id="printResume">{{ $hero['secondary_button'] }}<svg fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z"></path></svg>
-</button>
+@if(!empty($hero['resume_file']))
+<a class="button secondary" href="{{ route('starpmaminul.resume.download') }}">{{ $hero['secondary_button'] ?: 'Download resume' }}<svg fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 20h14"></path></svg>
+</a>
+@endif
 </div>
 </div>
 <div class="portrait-stage reveal delay-2" data-placeholder="Replace this visual with a high-resolution professional portrait. The site already works without it.">
@@ -398,14 +400,13 @@
 </section>
 </main>
 <aside aria-label="Page tools" class="floating-tools">
-<button aria-label="Show content notes" class="floating-tool" id="notesToggle" title="Show content notes"><svg fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24"><path d="M4 4h16v12H8l-4 4V4Z"></path><path d="M8 8h8M8 12h5"></path></svg></button>
+<a aria-label="{{ $site['whatsapp_label'] ?? 'Chat with me on WhatsApp' }}" class="floating-tool floating-tool-whatsapp" href="{{ $site['whatsapp_url'] ?? 'https://wa.me/8801742110660' }}" title="{{ $site['whatsapp_label'] ?? 'Chat with me on WhatsApp' }}">
+<svg fill="none" stroke="currentColor" stroke-width="1.7" viewbox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.7a8.4 8.4 0 0 1-12.4 7.4L4 20l.9-4a8.4 8.4 0 1 1 15.6-4.3Z"></path><path d="M8.3 8.1c.2-.5.5-.5.8-.5h.6c.2 0 .4 0 .5.4l.8 1.9c.1.3.1.5-.1.7l-.6.7c-.2.2-.2.4-.1.7.5 1 1.3 1.8 2.3 2.3.3.2.5.1.7-.1l.8-1c.2-.2.4-.3.7-.2l1.8.8c.3.1.5.3.5.5 0 .3-.2 1.6-1.1 2.2-.7.5-1.6.7-2.5.4-1.1-.3-2.5-.9-4.1-2.3-1.3-1.2-2.2-2.7-2.5-3.7-.3-.9 0-2 .6-2.8Z"></path></svg>
+</a>
+<a aria-label="{{ $site['main_site_label'] ?? 'Back to ITQAN Consulting' }}" class="floating-tool" href="{{ route('home') }}" title="{{ $site['main_site_label'] ?? 'Back to ITQAN Consulting' }}">
+<svg fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7"></path><path d="M6.5 9.5V20h11V9.5M9.5 20v-6h5v6"></path></svg>
+</a>
 <button aria-label="Back to top" class="floating-tool" id="backTop" title="Back to top"><svg fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24"><path d="m6 15 6-6 6 6"></path></svg></button>
-</aside>
-<aside aria-live="polite" class="notes-panel" id="notesPanel">
-<h3>{{ $site['notes_title'] }}</h3>
-<p>{{ $site['notes_description'] }}</p>
-<div class="notes-list">@foreach($site['notes'] as $note)<div>{{ $note['text'] }}</div>@endforeach</div>
-<button class="button secondary" id="editNotes" style="margin-top:14px;width:100%">{{ $site['notes_button'] }}</button>
 </aside>
 <div aria-hidden="true" class="project-drawer" id="projectDrawer">
 <div class="drawer-backdrop" data-close-drawer=""></div>

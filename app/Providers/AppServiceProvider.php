@@ -54,6 +54,18 @@ class AppServiceProvider extends ServiceProvider
                 });
         });
 
+        RateLimiter::for('work-order-form', function (Request $request) {
+            return Limit::perMinutes(10, 5)->by('work-order-form:'.$request->ip())
+                ->response(function () {
+                    return back()
+                        ->withInput()
+                        ->withErrors(
+                            ['project_summary' => 'Too many order requests were submitted. Please wait a few minutes and try again.'],
+                            'workOrder'
+                        );
+                });
+        });
+
         RateLimiter::for('admin-login', function (Request $request) {
             $email = mb_strtolower((string) $request->input('email'));
             $key = 'admin-login:'.$email.'|'.$request->ip();

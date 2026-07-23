@@ -109,6 +109,20 @@
         @foreach($page['founder']['paragraphs'] as $paragraph)
           <p>{{ $paragraph }}</p>
         @endforeach
+
+        @php
+          $founderButton = $page['founder']['button'] ?? [];
+          $founderRoute = $founderButton['route'] ?? 'starpmaminul.portfolio';
+          $founderHref = filled($founderButton['url'] ?? null)
+            ? $founderButton['url']
+            : (Route::has($founderRoute) ? route($founderRoute) : url('/starpmaminul'));
+        @endphp
+        <a class="template-founder-resume-link" href="{{ $founderHref }}" aria-label="View the founder digital resume">
+          <span>{{ $founderButton['text'] ?? 'View my digital resume' }}</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
       </div>
     </div>
   </section>

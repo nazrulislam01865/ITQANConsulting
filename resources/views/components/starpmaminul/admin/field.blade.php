@@ -135,6 +135,46 @@
         @isset($field['help'])<small class="field-help">{{ $field['help'] }}</small>@endisset
         @error('files.'.$path)<small class="field-error">{{ $message }}</small>@enderror
     </div>
+@elseif($type === 'file')
+    @php
+        $fileInputName = 'files['.str_replace('.', '][', $path).']';
+        $removeInputName = 'remove_files['.str_replace('.', '][', $path).']';
+        $accept = $field['accept'] ?? 'application/pdf,.pdf,.doc,.docx';
+        $maxMb = max(1, (int) ceil(($field['max_kb'] ?? 10240) / 1024));
+    @endphp
+    <div class="form-field form-field-block document-field">
+        <span>{{ $field['label'] }}</span>
+        <input type="hidden" name="{{ $inputName }}" value="{{ $value }}">
+        <div class="image-upload-row document-upload-row">
+            <div class="image-preview document-preview">
+                @if($value)
+                    <div class="document-preview-copy">
+                        <strong>Resume uploaded</strong>
+                        <span>{{ basename($value) }}</span>
+                        <a href="{{ \App\Support\StarPmAminulMedia::url($value) }}" target="_blank" rel="noopener">Open current file ↗</a>
+                    </div>
+                @else
+                    <div class="document-preview-copy">
+                        <strong>No resume uploaded</strong>
+                        <span>The download button stays hidden until a file is added.</span>
+                    </div>
+                @endif
+            </div>
+            <label class="image-upload-control document-upload-control" for="{{ $inputId }}">
+                <strong>{{ $value ? 'Replace resume' : 'Upload resume' }}</strong>
+                <small>PDF, DOC or DOCX · up to {{ $maxMb }} MB</small>
+                <input id="{{ $inputId }}" type="file" name="{{ $fileInputName }}" accept="{{ $accept }}">
+            </label>
+        </div>
+        @if($value)
+            <label class="remove-image-control">
+                <input type="checkbox" name="{{ $removeInputName }}" value="1">
+                <span>{{ $field['remove_label'] ?? 'Remove this uploaded document' }}</span>
+            </label>
+        @endif
+        @isset($field['help'])<small class="field-help">{{ $field['help'] }}</small>@endisset
+        @error('files.'.$path)<small class="field-error">{{ $message }}</small>@enderror
+    </div>
 @else
     <label class="form-field" for="{{ $inputId }}">
         <span>{{ $field['label'] }}</span>

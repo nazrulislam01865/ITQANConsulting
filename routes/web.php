@@ -12,8 +12,10 @@ use App\Http\Controllers\Admin\PageSectionItemController;
 use App\Http\Controllers\Admin\SiteSettingController;
 use App\Http\Controllers\Admin\SocialLinkController;
 use App\Http\Controllers\Admin\ContactSubmissionController as AdminContactSubmissionController;
+use App\Http\Controllers\Admin\WorkOrderController as AdminWorkOrderController;
 use App\Http\Controllers\Frontend\PageController;
 use App\Http\Controllers\Frontend\ContactSubmissionController as FrontendContactSubmissionController;
+use App\Http\Controllers\Frontend\WorkOrderController as FrontendWorkOrderController;
 use App\Http\Controllers\External\ItqanGuestMapController;
 use App\Http\Controllers\PublicStorageController;
 use App\Http\Middleware\EnsureAdminAuthenticated;
@@ -23,6 +25,7 @@ Route::get('/', [PageController::class, 'home'])->name('home');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::get('/services', [PageController::class, 'services'])->name('services');
 Route::get('/works', [PageController::class, 'works'])->name('works');
+Route::post('/works/order', [FrontendWorkOrderController::class, 'store'])->middleware('throttle:work-order-form')->name('work-orders.store');
 Route::get('/catalog', [PageController::class, 'catalog'])->name('catalog');
 Route::get('/catalog/download', [PageController::class, 'downloadCatalog'])->name('catalog.download');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
@@ -80,6 +83,11 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
         Route::get('/contact-responses/{contactSubmission}', [AdminContactSubmissionController::class, 'show'])->name('contact-submissions.show');
         Route::delete('/contact-responses/{contactSubmission}', [AdminContactSubmissionController::class, 'destroy'])->name('contact-submissions.destroy');
 
+        Route::get('/work-orders', [AdminWorkOrderController::class, 'index'])->name('work-orders.index');
+        Route::get('/work-orders/{workOrder}', [AdminWorkOrderController::class, 'show'])->name('work-orders.show');
+        Route::put('/work-orders/{workOrder}', [AdminWorkOrderController::class, 'update'])->name('work-orders.update');
+        Route::delete('/work-orders/{workOrder}', [AdminWorkOrderController::class, 'destroy'])->name('work-orders.destroy');
+
         Route::get('/social-links', [SocialLinkController::class, 'index'])->name('social-links.index');
         Route::post('/social-links', [SocialLinkController::class, 'store'])->name('social-links.store');
         Route::put('/social-links/{socialLink}', [SocialLinkController::class, 'update'])->name('social-links.update');
@@ -112,6 +120,8 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
 */
 Route::prefix('starpmaminul')->name('starpmaminul.')->group(function (): void {
     Route::get('/', [\App\Http\Controllers\StarPmAminul\PortfolioController::class, 'index'])->name('portfolio');
+    Route::get('/resume/download', [\App\Http\Controllers\StarPmAminul\MediaController::class, 'downloadResume'])
+        ->name('resume.download');
     Route::get('/media/{path}', [\App\Http\Controllers\StarPmAminul\MediaController::class, 'show'])
         ->where('path', '.*')
         ->name('media');

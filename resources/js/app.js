@@ -1131,3 +1131,95 @@ if (contactWizard) {
 
   renderContactWizard(false);
 }
+
+// Work order request modal
+const workOrderModal = document.querySelector('[data-work-order-modal]');
+if (workOrderModal) {
+  const dialog = workOrderModal.querySelector('.work-order-dialog');
+  const form = workOrderModal.querySelector('[data-work-order-form]');
+  const workKeyInput = workOrderModal.querySelector('[data-work-order-key]');
+  const workTitleLabel = workOrderModal.querySelector('[data-work-order-title]');
+  const closeButtons = workOrderModal.querySelectorAll('[data-work-order-close]');
+  const orderTriggers = document.querySelectorAll('[data-order-work]');
+  let previousFocus = null;
+
+  const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  const openWorkOrder = (workKey, workTitle, trigger = null, force = false) => {
+    if (!workKey && !force) return;
+
+    previousFocus = trigger || document.activeElement;
+    workKeyInput.value = workKey;
+    workTitleLabel.textContent = workTitle || 'Selected work';
+    workOrderModal.hidden = false;
+    document.body.classList.add('work-order-modal-open');
+
+    window.requestAnimationFrame(() => {
+      workOrderModal.classList.add('is-open');
+      const firstInvalid = form?.querySelector(':invalid');
+      const firstField = form?.querySelector('input:not([type="hidden"]):not([tabindex="-1"]), select, textarea');
+      (firstInvalid || firstField || dialog)?.focus({ preventScroll: true });
+    });
+  };
+
+  const closeWorkOrder = () => {
+    workOrderModal.classList.remove('is-open');
+    document.body.classList.remove('work-order-modal-open');
+    workOrderModal.hidden = true;
+
+    if (previousFocus instanceof HTMLElement) {
+      previousFocus.focus({ preventScroll: true });
+    }
+  };
+
+  orderTriggers.forEach((trigger) => {
+    trigger.addEventListener('click', () => {
+      openWorkOrder(trigger.dataset.workKey || '', trigger.dataset.workTitle || '', trigger);
+    });
+  });
+
+  closeButtons.forEach((button) => button.addEventListener('click', closeWorkOrder));
+
+  workOrderModal.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeWorkOrder();
+      return;
+    }
+
+    if (event.key !== 'Tab' || !dialog) return;
+
+    const focusable = [...dialog.querySelectorAll(focusableSelector)]
+      .filter((element) => !element.hasAttribute('hidden') && element.getClientRects().length > 0);
+
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+
+  form?.addEventListener('submit', (event) => {
+    if (!workKeyInput.value) {
+      event.preventDefault();
+      closeWorkOrder();
+      document.getElementById('workGrid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+
+  if (workOrderModal.dataset.openOnLoad === 'true') {
+    openWorkOrder(
+      workOrderModal.dataset.initialWorkKey || '',
+      workOrderModal.dataset.initialWorkTitle || 'Choose a work item',
+      null,
+      true
+    );
+  }
+}

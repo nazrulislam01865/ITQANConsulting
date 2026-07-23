@@ -19,7 +19,7 @@ class ItqanFrontendContentService
         $content = config('itqan');
 
         if (! $this->databaseReady()) {
-            return $content;
+            return $this->applyWorkOrderKeys($content);
         }
 
         $content = $this->applySiteSettings($content);
@@ -28,7 +28,7 @@ class ItqanFrontendContentService
         $content = $this->applyHomeFromDatabase($content);
         $content = $this->applyPagesFromDatabase($content);
 
-        return $content;
+        return $this->applyWorkOrderKeys($content);
     }
 
     private function databaseReady(): bool
@@ -241,6 +241,11 @@ class ItqanFrontendContentService
                 'image_url' => $this->storageUrl($settings['image_path'] ?? null),
                 'name' => $settings['name'] ?? '',
                 'role' => $settings['role'] ?? '',
+                'button' => [
+                    'text' => $section->button_text ?: ($home['founder']['button']['text'] ?? 'View my digital resume'),
+                    'route' => $section->button_route ?: ($home['founder']['button']['route'] ?? 'starpmaminul.portfolio'),
+                    'url' => $section->button_url ?: ($home['founder']['button']['url'] ?? null),
+                ],
             ];
         }
 
@@ -704,6 +709,40 @@ class ItqanFrontendContentService
         return $content;
     }
 
+    /** @param array<string,mixed> $content */
+    private function applyWorkOrderKeys(array $content): array
+    {
+        $works = collect($content['collections']['works'] ?? [])
+            ->values()
+            ->map(function (array $work, int $index): array {
+                if (blank($work['order_key'] ?? null)) {
+                    $slug = str((string) ($work['title'] ?? 'work-item'))->slug()->toString();
+                    $work['order_key'] = 'catalog-'.($slug !== '' ? $slug : 'work').'-'.($index + 1);
+                }
+
+                return $work;
+            })
+            ->all();
+
+        $content['collections']['works'] = $works;
+
+        if (isset($content['collections']['home_featured_works'])) {
+            $content['collections']['home_featured_works'] = collect($content['collections']['home_featured_works'])
+                ->values()
+                ->map(function (array $work, int $index): array {
+                    if (blank($work['order_key'] ?? null)) {
+                        $slug = str((string) ($work['title'] ?? 'work-item'))->slug()->toString();
+                        $work['order_key'] = 'featured-'.($slug !== '' ? $slug : 'work').'-'.($index + 1);
+                    }
+
+                    return $work;
+                })
+                ->all();
+        }
+
+        return $content;
+    }
+
     private function hero($section): array
     {
         $hero = [
@@ -780,6 +819,8 @@ class ItqanFrontendContentService
         $hasFeaturedSetting = array_key_exists('featured_on_home', $settings);
 
         return [
+            'id' => $item->getKey(),
+            'order_key' => 'work-'.$item->getKey(),
             'title' => $item->title,
             'pill' => $item->badge,
             'preview_pill' => $item->badge,

@@ -71,6 +71,7 @@
     <a class="{{ request()->routeIs('admin.header-menu.*') ? 'active' : '' }}" href="{{ route('admin.header-menu.index') }}">Header Menu</a>
     <a class="{{ request()->routeIs('admin.footer-menu.*') ? 'active' : '' }}" href="{{ route('admin.footer-menu.index') }}">Footer Menu</a>
     <a class="{{ request()->routeIs('admin.contact-submissions.*') ? 'active' : '' }}" href="{{ route('admin.contact-submissions.index') }}">Contact Responses</a>
+    <a class="{{ request()->routeIs('admin.work-orders.*') ? 'active' : '' }}" href="{{ route('admin.work-orders.index') }}">Work Orders</a>
     <a class="{{ request()->routeIs('admin.social-links.*') ? 'active' : '' }}" href="{{ route('admin.social-links.index') }}">Social Links</a>
     <a href="{{ route('home') }}" target="_blank" rel="noopener">View Website</a>
   </nav>

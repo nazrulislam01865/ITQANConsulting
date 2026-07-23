@@ -194,12 +194,7 @@ $('#voicePrev')?.addEventListener('click', () => showVoice(voiceIndex - 1));
 $('#voiceNext')?.addEventListener('click', () => showVoice(voiceIndex + 1));
 scheduleNextVoice();
 
-$('#printResume')?.addEventListener('click', () => window.print());
 backTop?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-
-const notesPanel = $('#notesPanel');
-$('#notesToggle')?.addEventListener('click', () => notesPanel?.classList.toggle('open'));
-$('#editNotes')?.addEventListener('click', () => document.body.classList.toggle('edit-notes'));
 
 const philosophyVisual = $('#philosophyVisual');
 if (philosophyVisual) {

@@ -505,6 +505,8 @@
     .floating-tool { width: 45px; height: 45px; border: 1px solid var(--line); border-radius: 50%; background: color-mix(in srgb, var(--surface) 84%, transparent); backdrop-filter: blur(16px); display: grid; place-items: center; cursor: pointer; transition: transform .25s; }
     .floating-tool:hover { transform: translateY(-3px); }
     .floating-tool svg { width: 17px; }
+    .floating-tool-whatsapp { color: var(--emerald); border-color: color-mix(in srgb, var(--emerald) 42%, var(--line)); }
+    .floating-tool:focus-visible { outline: 3px solid color-mix(in srgb, var(--emerald) 45%, transparent); outline-offset: 3px; }
 
     .notes-panel { position: fixed; left: 18px; bottom: 18px; z-index: 335; max-width: 370px; background: var(--surface); border: 1px solid var(--line); border-radius: 19px; padding: 18px; box-shadow: var(--shadow); transform: translateY(calc(100% + 30px)); opacity: 0; transition: transform .45s var(--ease), opacity .35s; }
     .notes-panel.open { transform: translateY(0); opacity: 1; }

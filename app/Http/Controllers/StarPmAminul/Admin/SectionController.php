@@ -31,30 +31,47 @@ class SectionController extends Controller
         $rules['files'] = ['nullable', 'array'];
         $rules['remove_files'] = ['nullable', 'array'];
 
-        foreach ($this->imageFieldPatterns($fields) as $imageField) {
-            $rules["files.{$imageField}"] = ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'];
-            $rules["remove_files.{$imageField}"] = ['nullable', 'boolean'];
+        foreach ($this->uploadFieldDefinitions($fields) as $upload) {
+            $path = $upload['path'];
+            $field = $upload['field'];
+            $type = $field['type'] ?? 'file';
+
+            $rules["remove_files.{$path}"] = ['nullable', 'boolean'];
+
+            if ($type === 'image') {
+                $rules["files.{$path}"] = ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'];
+                continue;
+            }
+
+            $mimes = array_values(array_filter((array) ($field['mimes'] ?? ['pdf', 'doc', 'docx'])));
+            $maxKilobytes = max(1, (int) ($field['max_kb'] ?? 10240));
+            $rules["files.{$path}"] = [
+                'nullable',
+                'file',
+                'mimes:'.implode(',', $mimes),
+                'max:'.$maxKilobytes,
+            ];
         }
 
         $validated = Validator::make($request->all(), $rules)->validate();
         $existing = $content->section($sectionKey);
-        $existingImages = $this->imagePaths($fields, $existing);
-        $allowedExistingImages = array_fill_keys($existingImages, true);
+        $existingMedia = $this->mediaPaths($fields, $existing);
+        $allowedExistingMedia = array_fill_keys($existingMedia, true);
 
         $submitted = (array) Arr::get($validated, 'data', []);
-        $submitted = $this->processImages(
+        $submitted = $this->processUploads(
             request: $request,
             fields: $fields,
             data: $submitted,
-            allowedExistingImages: $allowedExistingImages,
+            allowedExistingMedia: $allowedExistingMedia,
             directory: "starpmaminul/portfolio/{$sectionKey}",
         );
 
         $data = $this->normalizeData($fields, $submitted);
-        $retainedImages = array_fill_keys($this->imagePaths($fields, $data), true);
+        $retainedMedia = array_fill_keys($this->mediaPaths($fields, $data), true);
 
-        foreach ($existingImages as $oldPath) {
-            if (! isset($retainedImages[$oldPath])) {
+        foreach ($existingMedia as $oldPath) {
+            if (! isset($retainedMedia[$oldPath])) {
                 Storage::disk('public')->delete($oldPath);
             }
         }
@@ -85,7 +102,7 @@ class SectionController extends Controller
                 continue;
             }
 
-            if ($type === 'image') {
+            if (in_array($type, ['image', 'file'], true)) {
                 $rules[$path] = ['nullable', 'string', 'max:2048'];
                 continue;
             }
@@ -146,18 +163,18 @@ class SectionController extends Controller
     }
 
     /**
-     * Upload, remove and preserve image fields at any collection depth.
+     * Upload, remove and preserve image/document fields at any collection depth.
      *
      * @param  array<int, array<string, mixed>>  $fields
      * @param  array<string, mixed>  $data
-     * @param  array<string, bool>  $allowedExistingImages
+     * @param  array<string, bool>  $allowedExistingMedia
      * @return array<string, mixed>
      */
-    private function processImages(
+    private function processUploads(
         Request $request,
         array $fields,
         array $data,
-        array $allowedExistingImages,
+        array $allowedExistingMedia,
         string $directory,
         string $prefix = '',
     ): array {
@@ -179,11 +196,11 @@ class SectionController extends Controller
                         continue;
                     }
 
-                    $items[$index] = $this->processImages(
+                    $items[$index] = $this->processUploads(
                         request: $request,
                         fields: $field['fields'] ?? [],
                         data: $item,
-                        allowedExistingImages: $allowedExistingImages,
+                        allowedExistingMedia: $allowedExistingMedia,
                         directory: $directory,
                         prefix: "{$path}.{$index}",
                     );
@@ -193,12 +210,12 @@ class SectionController extends Controller
                 continue;
             }
 
-            if ($type !== 'image') {
+            if (! in_array($type, ['image', 'file'], true)) {
                 continue;
             }
 
             $currentPath = $data[$name] ?? null;
-            $currentPath = is_string($currentPath) && isset($allowedExistingImages[$currentPath])
+            $currentPath = is_string($currentPath) && isset($allowedExistingMedia[$currentPath])
                 ? $currentPath
                 : null;
 
@@ -220,30 +237,30 @@ class SectionController extends Controller
 
     /**
      * @param  array<int, array<string, mixed>>  $fields
-     * @return array<int, string>
+     * @return array<int, array{path: string, field: array<string, mixed>}>
      */
-    private function imageFieldPatterns(array $fields, string $prefix = ''): array
+    private function uploadFieldDefinitions(array $fields, string $prefix = ''): array
     {
-        $patterns = [];
+        $uploads = [];
 
         foreach ($fields as $field) {
             $name = $prefix === '' ? $field['name'] : "{$prefix}.{$field['name']}";
             $type = $field['type'] ?? 'text';
 
             if ($type === 'collection') {
-                $patterns = array_merge(
-                    $patterns,
-                    $this->imageFieldPatterns($field['fields'] ?? [], "{$name}.*"),
+                $uploads = array_merge(
+                    $uploads,
+                    $this->uploadFieldDefinitions($field['fields'] ?? [], "{$name}.*"),
                 );
                 continue;
             }
 
-            if ($type === 'image') {
-                $patterns[] = $name;
+            if (in_array($type, ['image', 'file'], true)) {
+                $uploads[] = ['path' => $name, 'field' => $field];
             }
         }
 
-        return $patterns;
+        return $uploads;
     }
 
     /**
@@ -251,7 +268,7 @@ class SectionController extends Controller
      * @param  array<string, mixed>  $data
      * @return array<int, string>
      */
-    private function imagePaths(array $fields, array $data): array
+    private function mediaPaths(array $fields, array $data): array
     {
         $paths = [];
 
@@ -262,13 +279,13 @@ class SectionController extends Controller
             if ($type === 'collection') {
                 foreach ((array) ($data[$name] ?? []) as $item) {
                     if (is_array($item)) {
-                        $paths = array_merge($paths, $this->imagePaths($field['fields'] ?? [], $item));
+                        $paths = array_merge($paths, $this->mediaPaths($field['fields'] ?? [], $item));
                     }
                 }
                 continue;
             }
 
-            if ($type !== 'image') {
+            if (! in_array($type, ['image', 'file'], true)) {
                 continue;
             }
 

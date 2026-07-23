@@ -21,6 +21,11 @@
     <h3>Contact Responses</h3>
     <p>{{ $unreadContactResponses }} unread message(s) from the public contact form.</p>
   </a>
+  <a class="card" href="{{ route('admin.work-orders.index') }}">
+    <div class="metric">{{ $workOrders }}</div>
+    <h3>Work Orders</h3>
+    <p>{{ $newWorkOrders }} new request(s) submitted from the Works page.</p>
+  </a>
   <a class="card" href="{{ route('admin.map.dashboard') }}">
     <div class="metric">{{ $guestMapPlaces }}</div>
     <h3>Resort Guest Map</h3>

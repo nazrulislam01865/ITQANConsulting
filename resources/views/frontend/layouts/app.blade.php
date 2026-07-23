@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ asset('assets/css/itqan-template.css') }}?v=mobile-values-contact-wizard-1">
+  <link rel="stylesheet" href="{{ asset('assets/css/itqan-template.css') }}?v=founder-resume-minimal-2">
   @vite(['resources/js/app.js'])
   @stack('head')
 </head>

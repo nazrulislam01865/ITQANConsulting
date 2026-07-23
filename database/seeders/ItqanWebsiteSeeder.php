@@ -126,6 +126,9 @@ class ItqanWebsiteSeeder extends Seeder
             'label' => $home['founder']['label'],
             'title' => $home['founder']['title'],
             'description' => implode("\n\n", $home['founder']['paragraphs']),
+            'button_text' => $home['founder']['button']['text'] ?? 'View my digital resume',
+            'button_route' => $home['founder']['button']['route'] ?? 'starpmaminul.portfolio',
+            'button_url' => $home['founder']['button']['url'] ?? null,
             'settings' => ['name' => $home['founder']['name'], 'role' => $home['founder']['role']],
         ]);
         $founder->items()->where('item_type', 'paragraph')->delete();

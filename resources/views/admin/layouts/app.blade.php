@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <meta name="admin-session-timeout-seconds" content="{{ max(1, (int) config('itqan_security.admin_session_timeout_minutes', 30)) * 60 }}">
   <meta name="admin-session-expired-url" content="{{ route('admin.session-expired') }}">
-  <link rel="stylesheet" href="{{ asset('assets/css/admin.css') }}?v=admin-favicon-upload-1">
+  <link rel="stylesheet" href="{{ asset('assets/css/admin.css') }}?v=admin-work-orders-1">
 </head>
 <body>
   <div class="admin-bg" aria-hidden="true"></div>
@@ -37,6 +37,6 @@
       </div>
     </main>
   </div>
-  <script src="{{ asset('assets/js/admin.js') }}?v=admin-favicon-upload-1"></script>
+  <script src="{{ asset('assets/js/admin.js') }}?v=admin-work-orders-1"></script>
 </body>
 </html>

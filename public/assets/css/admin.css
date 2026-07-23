@@ -362,3 +362,16 @@ body.admin-mobile-menu-open .admin-mobile-menu-toggle span:nth-child(3){
 .hero-visual-lock-note{display:grid;gap:5px;margin:0 0 18px;padding:14px 16px;border:1px solid rgba(24,184,255,.28);border-radius:16px;background:linear-gradient(135deg,rgba(24,184,255,.11),rgba(105,212,255,.045));color:#dff6ff}
 .hero-visual-lock-note strong{font-size:.86rem;color:#fff}
 .hero-visual-lock-note span{font-size:.78rem;line-height:1.55;color:#aebed0}
+
+/* Work order administration */
+.work-order-filter{margin-bottom:18px}
+.work-order-table{min-width:1040px}
+.work-order-table tr.is-unviewed td{background:rgba(24,184,255,.045)}
+.work-order-status.status-new{background:rgba(24,184,255,.14);border-color:rgba(24,184,255,.32);color:#d9f5ff}
+.work-order-status.status-reviewing{background:rgba(245,166,35,.13);border-color:rgba(245,166,35,.3);color:#ffe1a8}
+.work-order-status.status-contacted{background:rgba(105,212,255,.12);border-color:rgba(105,212,255,.28);color:#d9f7ff}
+.work-order-status.status-quoted{background:rgba(167,139,250,.13);border-color:rgba(167,139,250,.3);color:#e6dcff}
+.work-order-status.status-accepted,.work-order-status.status-completed{background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.28);color:#d5ffe3}
+.work-order-status.status-declined{background:rgba(255,92,108,.12);border-color:rgba(255,92,108,.28);color:#ffd5da}
+.card.light a{color:#075985;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:680px){.work-order-filter .button-row{display:grid;grid-template-columns:1fr}.work-order-filter .btn{width:100%}}

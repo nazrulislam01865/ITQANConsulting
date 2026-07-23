@@ -30,6 +30,19 @@
         </div>
       @endif
     @endisset
-    <a class="btn ghost-light small" href="{{ $buttonHref }}">{{ $buttonLabel }}</a>
+    @if($showOrder ?? false)
+      <div class="work-card-actions">
+        <a class="btn ghost-light small" href="{{ $buttonHref }}">{{ $buttonLabel }}</a>
+        <button
+          class="btn blue small work-order-trigger"
+          type="button"
+          data-order-work
+          data-work-key="{{ $work['order_key'] ?? '' }}"
+          data-work-title="{{ $work['title'] ?? 'Work item' }}"
+        >Order This Work</button>
+      </div>
+    @else
+      <a class="btn ghost-light small" href="{{ $buttonHref }}">{{ $buttonLabel }}</a>
+    @endif
   </div>
 </article>

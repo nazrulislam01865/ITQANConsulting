@@ -196,3 +196,15 @@ button { cursor: pointer; }
 
 .remove-image-control { display: inline-flex; align-items: center; gap: 8px; color: var(--admin-muted); font-size: 10px; cursor: pointer; }
 .remove-image-control input { width: auto; min-height: auto; accent-color: var(--admin-danger); }
+
+
+/* Resume document upload */
+.document-upload-row { grid-template-columns: minmax(0, 1fr) minmax(220px, .55fr); }
+.document-preview { min-height: 132px; padding: 22px; text-align: left; }
+.document-preview-copy { width: 100%; display: grid; gap: 7px; overflow: hidden; }
+.document-preview-copy strong { color: var(--admin-ink); font-size: 13px; }
+.document-preview-copy span { color: var(--admin-muted); font-size: 10px; overflow-wrap: anywhere; }
+.document-preview-copy a { width: max-content; color: var(--admin-accent); font-size: 10px; font-weight: 800; text-decoration: none; }
+.document-preview-copy a:hover { text-decoration: underline; }
+.document-upload-control { min-height: 132px; }
+@media (max-width: 760px) { .document-upload-row { grid-template-columns: 1fr; } }
