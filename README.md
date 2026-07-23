@@ -105,3 +105,9 @@ php artisan optimize:clear
 ```
 
 See `ITQAN_RESORT_MAP_REPLACEMENT.md` for details.
+
+---
+
+## Md Aminul Islam Portfolio
+
+This build includes a fully isolated portfolio module at `/starpmaminul`, with a separate admin at `/starpmaminul/admin/login` and a dedicated database connection. See [`STARPMAMINUL_INTEGRATION.md`](STARPMAMINUL_INTEGRATION.md) for setup, credentials, and production database configuration.

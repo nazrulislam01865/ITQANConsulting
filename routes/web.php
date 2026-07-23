@@ -100,3 +100,34 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
         Route::delete('/page-section-items/{item}', [PageSectionItemController::class, 'destroy'])->name('pages.items.destroy');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Md Aminul Islam portfolio (isolated module)
+|--------------------------------------------------------------------------
+|
+| The portfolio keeps its own controllers, views, assets, authentication
+| guard, uploads and database connection while sharing this web server.
+|
+*/
+Route::prefix('starpmaminul')->name('starpmaminul.')->group(function (): void {
+    Route::get('/', [\App\Http\Controllers\StarPmAminul\PortfolioController::class, 'index'])->name('portfolio');
+    Route::get('/media/{path}', [\App\Http\Controllers\StarPmAminul\MediaController::class, 'show'])
+        ->where('path', '.*')
+        ->name('media');
+
+    Route::prefix('admin')->name('admin.')->group(function (): void {
+        Route::get('/login', [\App\Http\Controllers\StarPmAminul\Admin\AuthController::class, 'create'])->name('login');
+        Route::post('/login', [\App\Http\Controllers\StarPmAminul\Admin\AuthController::class, 'store'])
+            ->middleware('throttle:5,1')
+            ->name('login.store');
+
+        Route::middleware(\App\Http\Middleware\EnsureStarPmAminulAuthenticated::class)->group(function (): void {
+            Route::get('/', [\App\Http\Controllers\StarPmAminul\Admin\DashboardController::class, 'index'])->name('dashboard');
+            Route::get('/dashboard', [\App\Http\Controllers\StarPmAminul\Admin\DashboardController::class, 'index'])->name('dashboard.page');
+            Route::get('/sections/{sectionKey}/edit', [\App\Http\Controllers\StarPmAminul\Admin\SectionController::class, 'edit'])->name('sections.edit');
+            Route::put('/sections/{sectionKey}', [\App\Http\Controllers\StarPmAminul\Admin\SectionController::class, 'update'])->name('sections.update');
+            Route::post('/logout', [\App\Http\Controllers\StarPmAminul\Admin\AuthController::class, 'destroy'])->name('logout');
+        });
+    });
+});

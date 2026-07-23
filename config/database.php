@@ -44,6 +44,38 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
+        /*
+         * Isolated database for the Md Aminul Islam portfolio module.
+         * It defaults to its own SQLite file and can be switched to a
+         * dedicated MySQL database through STARPMAMINUL_DB_* variables.
+         */
+        'starpmaminul' => [
+            'driver' => env('STARPMAMINUL_DB_CONNECTION', 'sqlite'),
+            'url' => env('STARPMAMINUL_DB_URL'),
+            'host' => env('STARPMAMINUL_DB_HOST', '127.0.0.1'),
+            'port' => env('STARPMAMINUL_DB_PORT', '3306'),
+            'database' => env('STARPMAMINUL_DB_CONNECTION', 'sqlite') === 'sqlite'
+                ? database_path(env('STARPMAMINUL_DB_SQLITE_FILE', 'starpmaminul.sqlite'))
+                : env('STARPMAMINUL_DB_DATABASE', 'starpmaminul'),
+            'username' => env('STARPMAMINUL_DB_USERNAME', 'root'),
+            'password' => env('STARPMAMINUL_DB_PASSWORD', ''),
+            'unix_socket' => env('STARPMAMINUL_DB_SOCKET', ''),
+            'charset' => env('STARPMAMINUL_DB_CHARSET', 'utf8mb4'),
+            'collation' => env('STARPMAMINUL_DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'foreign_key_constraints' => env('STARPMAMINUL_DB_FOREIGN_KEYS', true),
+            'busy_timeout' => null,
+            'journal_mode' => null,
+            'synchronous' => null,
+            'transaction_mode' => 'DEFERRED',
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('STARPMAMINUL_MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),

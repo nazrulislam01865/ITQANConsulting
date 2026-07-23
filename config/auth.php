@@ -42,6 +42,11 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'starpmaminul' => [
+            'driver' => 'session',
+            'provider' => 'starpmaminul_users',
+        ],
     ],
 
     /*
@@ -65,6 +70,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'starpmaminul_users' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\StarPmAminul\User::class,
         ],
 
         // 'users' => [

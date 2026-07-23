@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             ItqanWebsiteSeeder::class,
             ItqanExternalGuestMapSeeder::class,
+            StarPmAminulSeeder::class,
         ]);
     }
 }
