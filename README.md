@@ -111,3 +111,7 @@ See `ITQAN_RESORT_MAP_REPLACEMENT.md` for details.
 ## Md Aminul Islam Portfolio
 
 This build includes a fully isolated portfolio module at `/starpmaminul`, with a separate admin at `/starpmaminul/admin/login` and a dedicated database connection. See [`STARPMAMINUL_INTEGRATION.md`](STARPMAMINUL_INTEGRATION.md) for setup, credentials, and production database configuration.
+
+## Contact form CAPTCHA and email notifications
+
+The contact form supports Google reCAPTCHA v2 and sends valid inquiries to `aminul@itqanconsulting.com` by default while retaining them in the admin contact responses. See `docs/CONTACT_FORM_CAPTCHA_EMAIL.md` for the required production environment variables and deployment steps.

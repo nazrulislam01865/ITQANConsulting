@@ -1,0 +1,2 @@
+<?php echo $__env->make('admin.pages.sections.partials.cta-fields', ['section' => $section, 'routes' => $routes], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+<?php /**PATH /Applications/XAMPP/xamppfiles/htdocs/laravel/ITQANConsulting/resources/views/admin/pages/sections/services-cta.blade.php ENDPATH**/ ?>

@@ -93,7 +93,7 @@
   }
 
   $initialStep = 0;
-  if ($errors->hasAny(['message', 'budget'])) {
+  if ($errors->hasAny(['message', 'budget', 'captcha', 'g-recaptcha-response'])) {
       $initialStep = 3;
   } elseif ($errors->hasAny(['name', 'company', 'email', 'phone', 'method'])) {
       $initialStep = 2;
@@ -111,6 +111,8 @@
   $routeName = $cta['button']['route'] ?? null;
   $primaryHref = $cta['button']['url'] ?? (($routeName && Route::has($routeName)) ? route($routeName) : null);
   $primaryExternal = $primaryHref && \Illuminate\Support\Str::startsWith($primaryHref, ['http://', 'https://']);
+  $captchaEnabled = app(\App\Services\Frontend\RecaptchaVerifier::class)->isEnabled();
+  $captchaSiteKey = trim((string) config('itqan_contact.captcha.site_key'));
 @endphp
 
 <main id="contact" class="page active">
@@ -228,6 +230,21 @@
                     @endforeach
                   </select>
                 </div>
+
+                @if($captchaEnabled)
+                  <div class="contact-captcha full" data-contact-captcha>
+                    <div>
+                      <span class="contact-captcha-label">Security verification</span>
+                      <p>Please confirm you are not a robot before sending your message.</p>
+                    </div>
+                    <div class="contact-captcha-widget">
+                      <div data-recaptcha-widget data-sitekey="{{ $captchaSiteKey }}"></div>
+                    </div>
+                    <p class="contact-captcha-error" data-captcha-error @if(!$errors->has('captcha')) hidden @endif>
+                      {{ $errors->first('captcha') ?: 'Please complete the CAPTCHA verification.' }}
+                    </p>
+                  </div>
+                @endif
               </div>
             </div>
 
@@ -296,6 +313,15 @@
   @endif
 </main>
 @endsection
+
+@if($captchaEnabled)
+@push('head')
+<script>
+  window.itqanRecaptchaReady = () => window.dispatchEvent(new Event('itqan:recaptcha-ready'));
+</script>
+<script src="https://www.google.com/recaptcha/api.js?onload=itqanRecaptchaReady&render=explicit" async defer></script>
+@endpush
+@endif
 
 @push('scripts')
 <script>

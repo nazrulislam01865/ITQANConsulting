@@ -63,6 +63,6 @@
 </div>
 
 @if($items->hasPages())
-  <div style="margin-top:18px">{{ $items->links() }}</div>
+  {{ $items->links('admin.partials.pagination') }}
 @endif
 @endsection

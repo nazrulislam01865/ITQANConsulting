@@ -97,6 +97,6 @@
 </div>
 
 @if($orders->hasPages())
-  <div style="margin-top:18px">{{ $orders->links() }}</div>
+  {{ $orders->links('admin.partials.pagination') }}
 @endif
 @endsection

@@ -1033,6 +1033,10 @@ if (contactWizard) {
   const countLabel = contactWizard.querySelector('.contact-wizard-count');
   const backButton = contactWizard.querySelector('[data-wizard-back]');
   const nextButton = contactWizard.querySelector('[data-wizard-next]');
+  const captchaWrapper = contactWizard.querySelector('[data-contact-captcha]');
+  const captchaTarget = contactWizard.querySelector('[data-recaptcha-widget]');
+  const captchaError = contactWizard.querySelector('[data-captcha-error]');
+  let captchaWidgetId = null;
   let wizardIndex = Number.parseInt(contactWizard.dataset.initialStep || '0', 10);
 
   if (!Number.isFinite(wizardIndex)) wizardIndex = 0;
@@ -1063,6 +1067,51 @@ if (contactWizard) {
     return false;
   };
 
+  const showCaptchaError = (message = 'Please complete the CAPTCHA verification.') => {
+    if (!captchaError) return;
+    captchaError.textContent = message;
+    captchaError.hidden = false;
+  };
+
+  const renderCaptcha = () => {
+    if (!captchaWrapper || !captchaTarget || captchaWidgetId !== null) return;
+    if (!window.grecaptcha?.render || !captchaTarget.dataset.sitekey) return;
+
+    captchaWidgetId = window.grecaptcha.render(captchaTarget, {
+      sitekey: captchaTarget.dataset.sitekey,
+      theme: 'dark',
+      callback: () => {
+        if (captchaError) captchaError.hidden = true;
+      },
+      'expired-callback': () => showCaptchaError('The CAPTCHA expired. Please verify again.'),
+      'error-callback': () => showCaptchaError('The CAPTCHA could not load. Please refresh the page and try again.'),
+    });
+  };
+
+  const validateCaptcha = () => {
+    if (!captchaWrapper) return true;
+
+    let token = '';
+    if (captchaWidgetId !== null && window.grecaptcha?.getResponse) {
+      token = window.grecaptcha.getResponse(captchaWidgetId) || '';
+    } else {
+      token = contactWizard.querySelector('[name="g-recaptcha-response"]')?.value || '';
+    }
+
+    const verified = Boolean(token.trim());
+    if (captchaError) captchaError.hidden = verified;
+    if (verified) return true;
+
+    showCaptchaError();
+    captchaWrapper.scrollIntoView({
+      behavior: document.body.classList.contains('no-motion') ? 'auto' : 'smooth',
+      block: 'center',
+    });
+    return false;
+  };
+
+  window.addEventListener('itqan:recaptcha-ready', renderCaptcha);
+
   const renderContactWizard = (shouldFocus = false) => {
     wizardSteps.forEach((step, index) => {
       const active = index === wizardIndex;
@@ -1075,6 +1124,7 @@ if (contactWizard) {
     if (backButton) backButton.disabled = wizardIndex === 0;
 
     const finalStep = wizardIndex === wizardSteps.length - 1;
+    if (finalStep) window.requestAnimationFrame(renderCaptcha);
     if (nextButton) {
       const continueLabel = nextButton.dataset.continueLabel || 'Continue';
       const submitLabel = nextButton.dataset.submitLabel || 'Send message';
@@ -1118,7 +1168,7 @@ if (contactWizard) {
   }
 
   contactWizard.addEventListener('submit', (event) => {
-    if (!validateWizardStep(wizardIndex)) {
+    if (!validateWizardStep(wizardIndex) || !validateCaptcha()) {
       event.preventDefault();
       return;
     }
