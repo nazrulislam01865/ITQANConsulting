@@ -83,6 +83,7 @@
     <script type="application/json" data-clarity-data>{!! json_encode($clarityItems->all(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</script>
   </section>
 
+  @if($page['founder']['is_active'] ?? true)
   <section class="section template-founder-section" id="founder-message">
     <div class="container template-founder-grid">
       <div class="template-founder-visual reveal" aria-label="Founder portrait">
@@ -126,6 +127,7 @@
       </div>
     </div>
   </section>
+  @endif
 
   @php
     $whyItems = collect($page['who']['cards'] ?? [])->values();

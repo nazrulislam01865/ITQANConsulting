@@ -154,6 +154,12 @@ class ItqanFrontendContentService
         $activeSections = $allSections->filter(fn (HomeSection $section): bool => $section->is_active);
         $content = $this->applyHomeSections($content, $activeSections);
 
+        // Keep the founder's visibility separate from its fallback content.
+        // Otherwise, disabling it leaves the default founder message visible.
+        if ($founderSection = $allSections->get('home_founder')) {
+            $content['pages']['home']['founder']['is_active'] = (bool) $founderSection->is_active;
+        }
+
         if ($testimonialSection = $allSections->get('home_testimonials')) {
             $content['pages']['home']['testimonials']['is_active'] = (bool) $testimonialSection->is_active;
         }
