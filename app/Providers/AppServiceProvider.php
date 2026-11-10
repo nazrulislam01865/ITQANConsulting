@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Mail\Transport\E2aTransport;
 use App\Models\SiteSetting;
 use App\Services\Admin\AdminNavigationService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
@@ -27,6 +29,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Mail::extend('e2a', static function (array $config): E2aTransport {
+            return new E2aTransport(
+                (string) ($config['api_key'] ?? ''),
+                (string) ($config['sender'] ?? ''),
+                (string) ($config['api_url'] ?? 'https://api.e2a.dev/v1'),
+                (int) ($config['timeout'] ?? 20),
+            );
+        });
+
         $this->configureRateLimiting();
 
         View::composer('admin.partials.sidebar', function ($view): void {

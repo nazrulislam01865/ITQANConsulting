@@ -80,6 +80,7 @@ Route::prefix('admin')->name('admin.')->group(function (): void {
         Route::delete('/footer-menu/{menuItem}', [FooterMenuController::class, 'destroy'])->name('footer-menu.destroy');
 
         Route::get('/contact-responses', [AdminContactSubmissionController::class, 'index'])->name('contact-submissions.index');
+        Route::delete('/contact-responses/bulk', [AdminContactSubmissionController::class, 'bulkDestroy'])->name('contact-submissions.bulk-destroy');
         Route::get('/contact-responses/{contactSubmission}', [AdminContactSubmissionController::class, 'show'])->name('contact-submissions.show');
         Route::delete('/contact-responses/{contactSubmission}', [AdminContactSubmissionController::class, 'destroy'])->name('contact-submissions.destroy');
 

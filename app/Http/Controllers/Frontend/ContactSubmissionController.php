@@ -56,7 +56,12 @@ class ContactSubmissionController extends Controller
 
         $recipient = trim((string) config('itqan_contact.recipient_email', 'aminul@itqanconsulting.com'));
 
-        if (filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+        if (! filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('Contact inquiry notification recipient is not a valid email address.', [
+                'submission_id' => $submission->id,
+                'recipient' => $recipient,
+            ]);
+        } else {
             try {
                 Mail::to($recipient)->send(new ContactInquiryReceived($submission));
             } catch (Throwable $exception) {
@@ -66,11 +71,6 @@ class ContactSubmissionController extends Controller
                     'message' => $exception->getMessage(),
                 ]);
             }
-        } else {
-            Log::warning('Contact inquiry notification recipient is not a valid email address.', [
-                'submission_id' => $submission->id,
-                'recipient' => $recipient,
-            ]);
         }
 
         return back()->with('status', 'Thank you. Your message has been received. ITQAN will contact you soon.');

@@ -37,6 +37,14 @@ return [
 
     'mailers' => [
 
+        'e2a' => [
+            'transport' => 'e2a',
+            'api_url' => env('E2A_API_URL', 'https://api.e2a.dev/v1'),
+            'api_key' => env('E2A_API_KEY'),
+            'sender' => env('E2A_FROM_EMAIL', env('MAIL_FROM_ADDRESS')),
+            'timeout' => (int) env('E2A_TIMEOUT', 20),
+        ],
+
         'smtp' => [
             'transport' => 'smtp',
             'scheme' => env('MAIL_SCHEME'),

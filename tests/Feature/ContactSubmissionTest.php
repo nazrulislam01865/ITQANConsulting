@@ -45,6 +45,60 @@ class ContactSubmissionTest extends TestCase
         });
     }
 
+    public function test_contact_inquiry_sends_exactly_one_notification(): void
+    {
+        Mail::fake();
+
+        $this->from(route('contact'))->post(route('contact.submit'), $this->validPayload())
+            ->assertSessionHas('status');
+
+        $this->assertDatabaseCount('contact_submissions', 1);
+        Mail::assertSent(ContactInquiryReceived::class, 1);
+    }
+
+    public function test_invalid_primary_address_does_not_prevent_saving_the_inquiry(): void
+    {
+        Mail::fake();
+        config(['itqan_contact.recipient_email' => 'not-an-email']);
+
+        $this->from(route('contact'))->post(route('contact.submit'), $this->validPayload())
+            ->assertSessionHas('status');
+
+        $this->assertDatabaseCount('contact_submissions', 1);
+        Mail::assertNothingSent();
+    }
+
+    public function test_recaptcha_enabled_without_keys_cannot_be_bypassed(): void
+    {
+        Mail::fake();
+        Http::fake();
+        $this->enableCaptcha();
+        config(['itqan_contact.captcha.secret_key' => null]);
+
+        $this->from(route('contact'))->post(route('contact.submit'), [
+            ...$this->validPayload(),
+            'g-recaptcha-response' => 'some-token',
+        ])->assertSessionHasErrors('captcha');
+
+        $this->assertDatabaseCount('contact_submissions', 0);
+        Mail::assertNothingSent();
+        Http::assertNothingSent();
+    }
+
+    public function test_enabled_recaptcha_requires_a_response_token(): void
+    {
+        Mail::fake();
+        Http::fake();
+        $this->enableCaptcha();
+
+        $this->from(route('contact'))->post(route('contact.submit'), $this->validPayload())
+            ->assertSessionHasErrors('captcha');
+
+        $this->assertDatabaseCount('contact_submissions', 0);
+        Mail::assertNothingSent();
+        Http::assertNothingSent();
+    }
+
     public function test_contact_inquiry_is_rejected_when_recaptcha_verification_fails(): void
     {
         Mail::fake();

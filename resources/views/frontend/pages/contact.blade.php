@@ -237,9 +237,13 @@
                       <span class="contact-captcha-label">Security verification</span>
                       <p>Please confirm you are not a robot before sending your message.</p>
                     </div>
-                    <div class="contact-captcha-widget">
-                      <div data-recaptcha-widget data-sitekey="{{ $captchaSiteKey }}"></div>
-                    </div>
+                    @if($captchaSiteKey !== '')
+                      <div class="contact-captcha-widget">
+                        <div data-recaptcha-widget data-sitekey="{{ $captchaSiteKey }}"></div>
+                      </div>
+                    @else
+                      <p class="contact-captcha-error">Verification is temporarily unavailable. Please try again later.</p>
+                    @endif
                     <p class="contact-captcha-error" data-captcha-error @if(!$errors->has('captcha')) hidden @endif>
                       {{ $errors->first('captcha') ?: 'Please complete the CAPTCHA verification.' }}
                     </p>

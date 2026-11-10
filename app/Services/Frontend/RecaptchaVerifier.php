@@ -10,15 +10,19 @@ class RecaptchaVerifier
 {
     public function isEnabled(): bool
     {
-        return (bool) config('itqan_contact.captcha.enabled', false)
-            && trim((string) config('itqan_contact.captcha.site_key')) !== ''
-            && trim((string) config('itqan_contact.captcha.secret_key')) !== '';
+        return (bool) config('itqan_contact.captcha.enabled', false);
     }
 
     public function verify(?string $token, ?string $ipAddress = null): bool
     {
         if (! $this->isEnabled()) {
             return true;
+        }
+
+        if (trim((string) config('itqan_contact.captcha.site_key')) === ''
+            || trim((string) config('itqan_contact.captcha.secret_key')) === '') {
+            Log::error('Contact form reCAPTCHA is enabled but its keys are not configured.');
+            return false;
         }
 
         $token = trim((string) $token);
